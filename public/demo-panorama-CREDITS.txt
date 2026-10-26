@@ -1,0 +1,7 @@
+Jordan Pond — Matthew Petroff
+Source: https://github.com/mpetroff/pannellum/blob/99f4afd686e807d374a764231a58255f7dd853b6/examples/examplepano.jpg
+Author attribution: examples/example.htm in the same repository.
+License: Creative Commons Attribution-ShareAlike 3.0 Unported
+https://creativecommons.org/licenses/by-sa/3.0/
+Original photo copied without modification as demo-panorama.jpg (4096 x 2048).
+The image license applies to this photo, independently of application code.
