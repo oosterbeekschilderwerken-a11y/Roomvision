@@ -27,17 +27,17 @@ test('homepage links to an actual rendered WebGL panorama; drag, zoom, reset, up
   await page.getByRole('region', { name: /Interactieve/ }).focus();
   await page.keyboard.press('ArrowLeft');
   expect((await canvas.screenshot()).equals(initial)).toBe(false);
-  await page.locator('input[type=file]').setInputFiles({ name: 'bestand.txt', mimeType: 'text/plain', buffer: Buffer.from('invalid') });
+  await page.locator('#panorama-upload').setInputFiles({ name: 'bestand.txt', mimeType: 'text/plain', buffer: Buffer.from('invalid') });
   await expect(page.locator('.upload-error, .viewer-message.error')).toContainText('bestandstype');
-  await page.locator('input[type=file]').setInputFiles({ name: 'kapot.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('invalid') });
+  await page.locator('#panorama-upload').setInputFiles({ name: 'kapot.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('invalid') });
   await expect(page.locator('.upload-error, .viewer-message.error')).toContainText('geen leesbare foto');
   const square = await page.evaluate(async () => {
     const c = document.createElement('canvas'); c.width = c.height = 1024;
     return c.toDataURL('image/png').split(',')[1];
   });
-  await page.locator('input[type=file]').setInputFiles({ name: 'vierkant.png', mimeType: 'image/png', buffer: Buffer.from(square, 'base64') });
+  await page.locator('#panorama-upload').setInputFiles({ name: 'vierkant.png', mimeType: 'image/png', buffer: Buffer.from(square, 'base64') });
   await expect(page.locator('.upload-error, .viewer-message.error')).toContainText('verhouding');
-  await page.locator('input[type=file]').setInputFiles(photo);
+  await page.locator('#panorama-upload').setInputFiles(photo);
   await expect(page.getByText('demo-panorama.jpg', { exact: true })).toBeVisible();
   await expect(page.getByText('Panorama laden…')).toHaveCount(0);
   await expect(page.locator('.upload-error, .viewer-message.error')).toHaveCount(0);

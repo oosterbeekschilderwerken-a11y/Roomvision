@@ -2,30 +2,36 @@
 
 ## Fase 1 — 360° basis (afgerond)
 
-- [x] Next.js App Router, TypeScript, Tailwind CSS en Three.js installeren.
-- [x] Nederlandstalige responsive homepage met navigatie naar `/studio`.
-- [x] Echte Three.js-panoramaviewer met lokale 2:1-testfoto.
-- [x] Muis, éénvingerbediening, tweevingerzoom en toetsenbord ondersteunen.
-- [x] Zoomknoppen, scrollzoom en herstelknop.
-- [x] Eigen panorama lokaal openen zonder serverupload.
-- [x] Meldingen voor verkeerd bestandstype, grootte, resolutie, verhouding en beschadigde foto's.
-- [x] WebGL-fouten en GPU-textuurlimieten afhandelen.
-- [x] Object-URL's, listeners, animaties en GPU-middelen opruimen.
-- [x] Installatie, gebruik en beperkingen documenteren.
-- [x] Unit-tests en browsercontroles voor desktop en mobiel formaat.
-- [x] Productiebuild, ESLint en TypeScript controleren.
+- [x] Next.js App Router, TypeScript, Tailwind CSS en Three.js.
+- [x] Nederlandstalige responsive homepage en echte 360°-viewer.
+- [x] Muis, touch, zoom, toetsenbord en lokale panorama-upload met validatie.
+- [x] Productiebuild, lint, typecheck en regressietests.
 
-## Volgende fase — na aparte opdracht
+## Fase 2 — onafhankelijke oppervlaktekleuren
 
-- [ ] Functioneel ontwerp voor afzonderlijke muren, plafonds, deuren, kozijnen en plinten.
-- [ ] Handmatige oppervlakteselectie en consistente maskers over de panoramanaad onderzoeken.
-- [ ] Kleurweergave met behoud van licht, schaduw en materiaalstructuur ontwerpen.
-- [ ] Kleurenpalet en toegankelijke kleurbediening toevoegen.
-- [ ] Testen op fysieke iOS- en Android-apparaten en meerdere GPU's.
+- [x] Reproduceerbare equirectangulaire testkamer met pixel-ID-masker; expliciet als synthetische fixture gemarkeerd.
+- [x] Vier onafhankelijke muren, plafond, deur, deurkozijn en plintgroep.
+- [x] ID 0 beschermt meubels, ramen en vloer; eerste zichtbare geometrie bepaalt elk maskerpixel.
+- [x] Three.js-raycasting, UV-conversie, ID-lookup, naadwrapping en selectiecontour.
+- [x] Klik/tik voor selectie, slepen/knijpen zonder onbedoelde selectie en toetsenbordalternatief.
+- [x] Palet, native kleurkiezer, HEX-validatie en kleurherstel per oppervlak.
+- [x] WebGL-kleurshader met behoud van panoramahelderheid, schaduw en textuurvariatie.
+- [x] Ongedaan maken voor kleuren, kleurherstel, maskerimport en volledige penseelstreken.
+- [x] Ronde pixelborstel, gum, ID-voorvertoning en PNG-maskerimport/-export.
+- [x] Eigen panorama's krijgen lege maskers; nooit onjuiste demo-maskers overdragen.
+- [x] Tests voor onafhankelijke rode/blauwe muren, beschermde meubel-/raampixels, volledige rotatie, mobiele selectie en undo.
+- [x] Documentatie voor fixture, ID-formaat, correcties en beperkingen.
 
-## Latere mogelijkheden — nog niet bouwen
+## Nog nodig voor echte interieurfoto's
 
-- [ ] Projecten bewaren en terugopenen; privacy en opslag vooraf uitwerken.
-- [ ] Optionele herkenning van oppervlakken, uitsluitend na aparte opdracht.
+- [ ] Geschikt interieurpanorama plus nauwkeurig uitgelijnde oppervlakte-ID-maskers aanleveren of handmatig tekenen.
+- [ ] Meer onafhankelijke ID's wanneer bijvoorbeeld elke losse plint of deur een eigen kleur nodig heeft.
+- [ ] Verfweergave kalibreren op echte materialen, extreme belichting en sterk gekleurde originele muren.
+- [ ] Fysieke iOS-/Android-apparaten en andere GPU's testen.
+
+## Latere fases — na aparte opdracht
+
+- [ ] Volledige projecten met foto, masker, kleuren en geschiedenis opslaan/terugopenen.
 - [ ] Export en vergelijking van kleurvarianten.
-- [ ] Eventueel offertesysteem, uitsluitend na aparte opdracht.
+- [ ] Eventuele AI-oppervlakteherkenning.
+- [ ] Eventueel offertesysteem.
