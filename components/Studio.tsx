@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PanoramaViewer from "./PanoramaViewer";
 import ColorPanel from "./ColorPanel";
+import type { PaintReference } from "@/lib/paint-catalog";
 import { validateFile, validateDimensions } from "@/lib/panorama";
 import {
   SURFACES,
@@ -326,23 +327,34 @@ export default function Studio() {
       if (id === requestId.current) setValidating(false);
     }
   }
-  function color(hex: string) {
+  function color(hex: string, reference?: PaintReference) {
     setOriginal(false);
     if (!selected) return;
-    setDoc((previous) =>
-      previous && previous.colors[selected] !== hex
-        ? editDocument(previous, {
-            colors: { ...previous.colors, [selected]: hex },
-          })
-        : previous,
-    );
+    setDoc((previous) => {
+      if (!previous) return previous;
+      const paintRefs = { ...previous.paintRefs };
+      if (reference) paintRefs[selected] = reference;
+      else delete paintRefs[selected];
+      if (
+        previous.colors[selected] === hex &&
+        JSON.stringify(previous.paintRefs?.[selected]) ===
+          JSON.stringify(reference)
+      )
+        return previous;
+      return editDocument(previous, {
+        colors: { ...previous.colors, [selected]: hex },
+        paintRefs,
+      });
+    });
   }
   function restore() {
     setDoc((previous) => {
       if (!previous) return previous;
       const colors = { ...previous.colors };
       delete colors[selected];
-      return editDocument(previous, { colors });
+      const paintRefs = { ...previous.paintRefs };
+      delete paintRefs[selected];
+      return editDocument(previous, { colors, paintRefs });
     });
   }
   const surface = SURFACES.find((s) => s.id === selected);
@@ -474,6 +486,7 @@ export default function Studio() {
               name={surface.name}
               surfaceKey={surface.key}
               color={doc.colors[selected]}
+              paintReference={doc.paintRefs?.[selected]}
               onColor={color}
               onRestore={restore}
               strength={doc.strengths?.[selected] ?? 1}

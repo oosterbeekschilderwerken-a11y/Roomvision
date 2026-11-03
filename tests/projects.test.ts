@@ -28,7 +28,7 @@ test("project roundtrip retains exact IDs, all colors and per-surface strengths 
   assert.equal(restored.name, "Mijn woonkamer");
   assert.equal(restored.photo, photo);
   for (const change of [
-    { version: 2 },
+    { version: 99 },
     { photo: "https://evil.example/photo.jpg" },
     { photo: "data:image/svg+xml;base64,AQID" },
     { colors: { __proto__: "red", 9: "#ffffff" } },

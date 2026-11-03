@@ -1,4 +1,9 @@
 import {
+  isPaintReference,
+  getRalColor,
+  type PaintReferences,
+} from "./paint-catalog.ts";
+import {
   validHex,
   type Snapshot,
   type Colors,
@@ -6,12 +11,13 @@ import {
 } from "./surfaces.ts";
 export type Project = {
   format: "roomvision-project";
-  version: 1;
+  version: 2;
   name: string;
   photo: string;
   mask: { width: number; height: number; data: string };
   colors: Colors;
   strengths: Strengths;
+  paintRefs: PaintReferences;
 };
 export const MAX_PROJECT_BYTES = 45 * 1024 * 1024;
 function record(value: unknown): value is Record<string, unknown> {
@@ -30,7 +36,7 @@ export function encodeProject(
 ): Project {
   return {
     format: "roomvision-project",
-    version: 1,
+    version: 2,
     name,
     photo,
     mask: {
@@ -40,6 +46,7 @@ export function encodeProject(
     },
     colors: { ...doc.colors },
     strengths: { ...doc.strengths },
+    paintRefs: { ...doc.paintRefs },
   };
 }
 export function decodeProject(value: unknown): {
@@ -50,9 +57,11 @@ export function decodeProject(value: unknown): {
   if (
     !record(value) ||
     value.format !== "roomvision-project" ||
-    value.version !== 1
+    (value.version !== 1 && value.version !== 2)
   )
-    throw new Error("Dit is geen ondersteund RoomVision-project (versie 1).");
+    throw new Error(
+      "Dit is geen ondersteund RoomVision-project (versie 1 of 2).",
+    );
   if (
     typeof value.name !== "string" ||
     value.name.length > 255 ||
@@ -105,6 +114,26 @@ export function decodeProject(value: unknown): {
       throw new Error("Ongeldige kleursterkte.");
     strengths[Number(id)] = strength;
   }
+  const paintRefs: PaintReferences = {};
+  if (value.version === 2) {
+    if (!record(value.paintRefs))
+      throw new Error("Ongeldige RAL- en merkgegevens.");
+    for (const [id, ref] of Object.entries(value.paintRefs)) {
+      if (
+        !/^[1-8]$/.test(id) ||
+        !isPaintReference(ref) ||
+        colors[Number(id)]?.toUpperCase() !== getRalColor(ref.code)?.hex
+      )
+        throw new Error(
+          "De RAL-code, schermkleur of merkvoorkeur in dit project klopt niet.",
+        );
+      paintRefs[Number(id)] = {
+        system: ref.system,
+        code: ref.code,
+        brand: ref.brand,
+      };
+    }
+  }
   return {
     name: value.name,
     photo: value.photo,
@@ -112,6 +141,7 @@ export function decodeProject(value: unknown): {
       mask: { width: Number(m.width), height: Number(m.height), pixels },
       colors,
       strengths,
+      paintRefs,
     },
   };
 }

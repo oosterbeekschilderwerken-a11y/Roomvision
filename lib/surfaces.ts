@@ -1,3 +1,4 @@
+import type { PaintReferences } from "./paint-catalog.ts";
 export const SURFACES = [
   { id: 1, key: "wall_001", name: "Muur 1" },
   { id: 2, key: "wall_002", name: "Muur 2" },
@@ -12,7 +13,12 @@ export type Mask = { width: number; height: number; pixels: Uint8Array };
 export type Point = { u: number; v: number };
 export type Colors = Record<number, string>;
 export type Strengths = Record<number, number>;
-export type Snapshot = { mask: Mask; colors: Colors; strengths?: Strengths };
+export type Snapshot = {
+  mask: Mask;
+  colors: Colors;
+  strengths?: Strengths;
+  paintRefs?: PaintReferences;
+};
 export type Document = Snapshot & { history: Snapshot[]; future?: Snapshot[] };
 export const wrap = (u: number) => ((u % 1) + 1) % 1;
 // Three.js UVs have their origin at bottom-left; raster masks at top-left.
@@ -30,6 +36,14 @@ export function surfaceAt(mask: Mask, uv: Point) {
 export function validHex(value: string) {
   return /^#[0-9a-f]{6}$/i.test(value);
 }
+function snapshotDocument(doc: Document): Snapshot {
+  return {
+    mask: doc.mask,
+    colors: doc.colors,
+    strengths: doc.strengths,
+    paintRefs: doc.paintRefs,
+  };
+}
 export function editDocument(
   doc: Document,
   change: Partial<Snapshot>,
@@ -40,10 +54,7 @@ export function editDocument(
     ...change,
     future: remember ? [] : doc.future,
     history: remember
-      ? [
-          ...doc.history.slice(-19),
-          { mask: doc.mask, colors: doc.colors, strengths: doc.strengths },
-        ]
+      ? [...doc.history.slice(-19), snapshotDocument(doc)]
       : doc.history,
   };
 }
@@ -53,10 +64,7 @@ export function undoDocument(doc: Document): Document {
     ? {
         ...previous,
         history: doc.history.slice(0, -1),
-        future: [
-          ...(doc.future || []).slice(-19),
-          { mask: doc.mask, colors: doc.colors, strengths: doc.strengths },
-        ],
+        future: [...(doc.future || []).slice(-19), snapshotDocument(doc)],
       }
     : doc;
 }
@@ -65,10 +73,7 @@ export function redoDocument(doc: Document): Document {
   return next
     ? {
         ...next,
-        history: [
-          ...doc.history.slice(-19),
-          { mask: doc.mask, colors: doc.colors, strengths: doc.strengths },
-        ],
+        history: [...doc.history.slice(-19), snapshotDocument(doc)],
         future: doc.future!.slice(0, -1),
       }
     : doc;

@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import PaintCatalog from "./PaintCatalog";
+import type { PaintReference } from "@/lib/paint-catalog";
 import { validHex } from "@/lib/surfaces";
 const PALETTE = [
   ["Warm wit", "#EEE9DD"],
@@ -19,14 +21,16 @@ export default function ColorPanel({
   onRestore,
   strength,
   onStrength,
+  paintReference,
 }: {
   name: string;
   surfaceKey: string;
   color?: string;
-  onColor: (hex: string) => void;
+  onColor: (hex: string, reference?: PaintReference) => void;
   onRestore: () => void;
   strength: number;
   onStrength: (value: number) => void;
+  paintReference?: PaintReference;
 }) {
   return (
     <section className="color-panel" aria-label="Kleurenpaneel">
@@ -45,6 +49,7 @@ export default function ColorPanel({
           />
         ))}
       </div>
+      <PaintCatalog reference={paintReference} onChoose={onColor} />
       <label className="field-label" htmlFor="custom-color">
         Eigen kleur kiezen
       </label>

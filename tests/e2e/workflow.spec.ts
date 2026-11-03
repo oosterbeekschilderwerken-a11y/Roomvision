@@ -8,31 +8,39 @@ async function open(page: Page) {
   await page.locator("#surface-select").waitFor();
 }
 async function pixels(page: Page) {
-  const png = await page.locator("canvas").screenshot();
-  return page.evaluate(async (base64) => {
-    const image = new Image();
-    image.src = "data:image/png;base64," + base64;
-    await image.decode();
-    const c = document.createElement("canvas");
-    c.width = image.width;
-    c.height = image.height;
-    const ctx = c.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
-    return [
-      [0.5, 0.35],
-      [0.9, 0.35],
-      [0.5, 0.7],
-    ].map(([x, y]) =>
-      Array.from(
-        ctx.getImageData(
-          Math.floor(x * c.width),
-          Math.floor(y * c.height),
-          1,
-          1,
-        ).data,
-      ).slice(0, 3),
-    );
-  }, png.toString("base64"));
+  // Read the rendered framebuffer inside the animation frame. CSS screenshot
+  // cropping at fractional scroll offsets can resample a nominally identical
+  // canvas by a fraction of a pixel; framebuffer samples avoid that ambiguity.
+  return page.locator("canvas").evaluate(
+    (canvas: HTMLCanvasElement) =>
+      new Promise<number[][]>((resolve, reject) => {
+        requestAnimationFrame(() => {
+          const gl = canvas.getContext("webgl2");
+          if (!gl) {
+            reject(new Error("WebGL2 framebuffer unavailable"));
+            return;
+          }
+          const samples = [
+            [0.5, 0.35],
+            [0.9, 0.35],
+            [0.5, 0.7],
+          ].map(([x, y]) => {
+            const pixel = new Uint8Array(4);
+            gl.readPixels(
+              Math.floor(x * canvas.width),
+              Math.floor((1 - y) * canvas.height),
+              1,
+              1,
+              gl.RGBA,
+              gl.UNSIGNED_BYTE,
+              pixel,
+            );
+            return Array.from(pixel).slice(0, 3);
+          });
+          resolve(samples);
+        });
+      }),
+  );
 }
 const delta = (a: number[], b: number[]) =>
   Math.max(...a.map((v, i) => Math.abs(v - b[i])));
@@ -114,13 +122,11 @@ test("complete project download reopens after reload with independent colors and
   });
   await expect(page.locator(".upload-error")).toContainText("geen ondersteund");
   await expect(page.locator("#custom-color")).toHaveValue("#3265c4");
-  await page
-    .getByLabel("RoomVision-project openen")
-    .setInputFiles({
-      name: "geen-json.roomvision",
-      mimeType: "application/json",
-      buffer: Buffer.from("{broken"),
-    });
+  await page.getByLabel("RoomVision-project openen").setInputFiles({
+    name: "geen-json.roomvision",
+    mimeType: "application/json",
+    buffer: Buffer.from("{broken"),
+  });
   await expect(page.locator(".upload-error")).toContainText("ongeldige JSON");
   await expect(page.locator("#custom-color")).toHaveValue("#3265c4");
 });

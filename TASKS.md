@@ -47,3 +47,14 @@
 - [x] Bestaande andere oppervlak-IDs standaard beschermen bij schilderen.
 - [x] Unit- en browsertests voor projectbestanden, belichting, bescherming, vergelijking, sterkte en herstel.
 - [ ] Een echte eigen interieurfoto met gecontroleerde maskers toevoegen zodra die beschikbaar is.
+
+## RAL en verfmerken
+
+- [x] Zoekbare, gepinde RAL Classic-catalogus met 215 schermindicaties en kleurgroepen.
+- [x] Sikkens, Sigma en Flexa als gewenste merkvoorkeur per RAL-oppervlak.
+- [x] Code en merkvoorkeur behouden bij undo/redo en complete projectexport/import.
+- [x] Projectformaat versie 2; oude versie-1-projecten blijven leesbaar.
+- [x] Eigen HEX-keuzes loshouden van gecatalogiseerde RAL-referenties.
+- [x] Datasetlicentie, herkomst en schermbeperkingen documenteren en zichtbaar maken in de app.
+- [x] Unit-tests en desktop-/mobiele browsercontroles voor de RAL-werkwijze.
+- [ ] Geverifieerde eigen kleurcollecties en product-/mengbaarheidsgegevens van Sikkens, Sigma en Flexa verkrijgen en koppelen; huidige merkkeuze is uitsluitend een voorkeur.
