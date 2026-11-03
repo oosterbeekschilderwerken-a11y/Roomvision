@@ -11,6 +11,9 @@ export function createColorMaterial() {
       value: Array.from({ length: 16 }, () => new THREE.Color()),
     },
     surfaceEnabled: { value: Array(16).fill(0) as number[] },
+    surfaceStrength: { value: Array(16).fill(1) as number[] },
+    baseLuma: { value: Array(16).fill(0.55) as number[] },
+    original: { value: 0 },
     selectedSurface: { value: 0 },
     showMask: { value: 0 },
   };
@@ -23,6 +26,9 @@ export function createColorMaterial() {
       uniform vec2 maskSize;
       uniform vec3 surfacePalette[16];
       uniform float surfaceEnabled[16];
+      uniform float surfaceStrength[16];
+      uniform float baseLuma[16];
+      uniform float original;
       uniform float selectedSurface;
       uniform float showMask;
       float labelAt(vec2 uv) { return floor(texture2D(idMap, vec2(fract(uv.x), clamp(uv.y, 0.0, 1.0))).r * 255.0 + 0.5); }
@@ -33,10 +39,10 @@ export function createColorMaterial() {
       #include <map_fragment>
       float surfaceId = labelAt(vMapUv);
       int index = int(surfaceId);
-      if (index > 0 && index < 16) {
+      if (index > 0 && index < 16 && original < 0.5) {
         if (surfaceEnabled[index] > 0.5) {
           float light = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-          diffuseColor.rgb = surfacePalette[index] * clamp(light / 0.55, 0.04, 1.65);
+          diffuseColor.rgb = mix(diffuseColor.rgb, surfacePalette[index] * clamp(light / baseLuma[index], 0.0, 2.0), surfaceStrength[index]);
         }
         if (showMask > 0.5) {
           vec3 debugColor = 0.35 + 0.3 * cos(vec3(0.0, 2.1, 4.2) + surfaceId * 2.4);
@@ -51,6 +57,6 @@ export function createColorMaterial() {
     `,
     );
   };
-  material.customProgramCacheKey = () => "roomvision-surface-pigment-v1";
+  material.customProgramCacheKey = () => "roomvision-surface-pigment-v2";
   return { material, uniforms };
 }

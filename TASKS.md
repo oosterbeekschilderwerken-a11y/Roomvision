@@ -31,7 +31,19 @@
 
 ## Latere fases — na aparte opdracht
 
-- [ ] Volledige projecten met foto, masker, kleuren en geschiedenis opslaan/terugopenen.
+- [x] Lokale projectbestanden met foto, masker, kleuren en kleursterktes opslaan/terugopenen (geschiedenis blijft in de sessie).
 - [ ] Export en vergelijking van kleurvarianten.
 - [ ] Eventuele AI-oppervlakteherkenning.
 - [ ] Eventueel offertesysteem.
+
+## Vervolg fase 2 — gebruik en betrouwbaarheid
+
+- [x] Complete lokale projectexport/import met formaatversie en validatie vóór het huidige ontwerp wordt vervangen.
+- [x] Origineel/ingekleurd vergelijken op hetzelfde camerastandpunt.
+- [x] Kleursterkte onafhankelijk per oppervlak.
+- [x] Helderheidsreferentie per oppervlak in plaats van één vaste waarde voor alle muren.
+- [x] Opnieuw uitvoeren naast ongedaan maken; nieuwe bewerkingen wissen de redo-tak.
+- [x] Duidelijke melding en directe tekenactie voor nog ongemaskeerde oppervlakken op eigen foto’s.
+- [x] Bestaande andere oppervlak-IDs standaard beschermen bij schilderen.
+- [x] Unit- en browsertests voor projectbestanden, belichting, bescherming, vergelijking, sterkte en herstel.
+- [ ] Een echte eigen interieurfoto met gecontroleerde maskers toevoegen zodra die beschikbaar is.

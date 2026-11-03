@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PanoramaViewer from "./PanoramaViewer";
 import ColorPanel from "./ColorPanel";
 import { validateFile, validateDimensions } from "@/lib/panorama";
@@ -7,10 +7,18 @@ import {
   SURFACES,
   editDocument,
   undoDocument,
+  redoDocument,
   paintMask,
   type Document,
   type Point,
 } from "@/lib/surfaces";
+import {
+  encodeProject,
+  decodeProject,
+  downloadProject,
+  photoDataURL,
+  MAX_PROJECT_BYTES,
+} from "@/lib/project";
 import { readMask, downloadMask } from "@/lib/mask-io";
 const ROOM = "/room/panorama.png",
   OUTDOOR = "/demo-panorama.jpg";
@@ -25,6 +33,16 @@ export default function Studio() {
   const [validating, setValidating] = useState(false);
   const [doc, setDoc] = useState<Document | null>(null);
   const [selected, setSelected] = useState(0);
+  const [original, setOriginal] = useState(false);
+  const [protectOthers, setProtectOthers] = useState(true);
+  const projectInput = useRef<HTMLInputElement>(null);
+  const editor = useRef<HTMLDetailsElement>(null);
+  const currentMask = doc?.mask;
+  const counts = useMemo(() => {
+    const result = new Uint32Array(9);
+    if (currentMask) for (const id of currentMask.pixels) result[id]++;
+    return result;
+  }, [currentMask]);
   const [mode, setMode] = useState<"look" | "paint" | "erase">("look");
   const [showMask, setShowMask] = useState(false),
     [radius, setRadius] = useState(12);
@@ -73,6 +91,7 @@ export default function Studio() {
   );
   const select = useCallback((id: number) => {
     setSelected(id);
+    setOriginal(false);
     setNotice(
       id
         ? `${SURFACES.find((s) => s.id === id)?.name} geselecteerd. Kies een kleur in het kleurenpaneel.`
@@ -87,19 +106,28 @@ export default function Studio() {
         previous
           ? editDocument(
               previous,
-              { mask: paintMask(previous.mask, points, id, radius) },
+              {
+                mask: paintMask(
+                  previous.mask,
+                  points,
+                  id,
+                  radius,
+                  protectOthers,
+                ),
+              },
               remember,
             )
           : previous,
       );
     },
-    [mode, selected, radius],
+    [mode, selected, radius, protectOthers],
   );
   function reset() {
     setZoom(75);
     setResetKey((n) => n + 1);
   }
   function clean() {
+    setOriginal(false);
     setSelected(0);
     setMode("look");
     setShowMask(false);
@@ -212,10 +240,97 @@ export default function Studio() {
       if (id === requestId.current) setValidating(false);
     }
   }
+  async function saveProject() {
+    if (!doc) return;
+    const id = ++requestId.current;
+    setValidating(true);
+    setError("");
+    try {
+      const response = await fetch(source);
+      if (!response.ok)
+        throw new Error("Panoramafoto kon niet worden gelezen.");
+      const photo = await photoDataURL(await response.blob());
+      if (id !== requestId.current) return;
+      downloadProject(encodeProject(name, photo, doc));
+      setNotice(
+        "Project gedownload: foto, maskers en kleuren. Bewaar dit bestand om later verder te werken.",
+      );
+    } catch (e) {
+      if (id === requestId.current)
+        setError(e instanceof Error ? e.message : "Project opslaan mislukt.");
+    } finally {
+      if (id === requestId.current) setValidating(false);
+    }
+  }
+  async function openProject(file: File) {
+    if (file.size > MAX_PROJECT_BYTES) {
+      setError("Het project is te groot. Maximaal 45 MB.");
+      return;
+    }
+    const id = ++requestId.current;
+    setValidating(true);
+    setError("");
+    let url: string | null = null;
+    try {
+      let data: unknown;
+      try {
+        data = JSON.parse(await file.text());
+      } catch {
+        throw new Error(
+          "Dit projectbestand bevat ongeldige JSON. Kies een geldig .roomvision-bestand.",
+        );
+      }
+      const project = decodeProject(data);
+      const response = await fetch(project.photo),
+        blob = await response.blob();
+      const invalidFile = validateFile(blob.type, blob.size);
+      if (invalidFile) throw new Error(invalidFile);
+      url = URL.createObjectURL(blob);
+      const image = new Image();
+      image.src = url;
+      try {
+        await image.decode();
+      } catch {
+        throw new Error(
+          "De foto in dit project is beschadigd of niet leesbaar.",
+        );
+      }
+      const invalid = validateDimensions(image.width, image.height);
+      if (invalid) throw new Error(invalid);
+      const scale = Math.min(1, 2048 / image.width, 1024 / image.height);
+      if (
+        project.snapshot.mask.width !== Math.round(image.width * scale) ||
+        project.snapshot.mask.height !== Math.round(image.height * scale)
+      )
+        throw new Error("De maskermaten passen niet bij de projectfoto.");
+      if (id !== requestId.current) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      clean();
+      setSource(url);
+      setName(project.name);
+      setDoc({ ...project.snapshot, history: [], future: [] });
+      setLoading(true);
+      setViewerError("");
+      setNotice(
+        "Project geopend. Foto, maskers, kleuren en kleursterktes zijn hersteld.",
+      );
+    } catch (e) {
+      if (url) URL.revokeObjectURL(url);
+      if (id === requestId.current)
+        setError(
+          e instanceof Error ? e.message : "Project kon niet worden geopend.",
+        );
+    } finally {
+      if (id === requestId.current) setValidating(false);
+    }
+  }
   function color(hex: string) {
+    setOriginal(false);
     if (!selected) return;
     setDoc((previous) =>
-      previous
+      previous && previous.colors[selected] !== hex
         ? editDocument(previous, {
             colors: { ...previous.colors, [selected]: hex },
           })
@@ -248,11 +363,23 @@ export default function Studio() {
             mask={doc?.mask || null}
             colors={doc?.colors || {}}
             selected={selected}
+            strengths={doc?.strengths || {}}
+            original={original}
             mode={mode}
             showMask={showMask}
             onSelect={select}
             onPaint={paint}
           />
+          <button
+            className="compare-button"
+            aria-pressed={original}
+            onClick={() => {
+              setOriginal((value) => !value);
+              setMode("look");
+            }}
+          >
+            {original ? "Toon kleuren" : "Toon origineel"}
+          </button>
           <div className="viewer-top">
             <span className="viewer-pill">
               <span className="status-dot" />
@@ -349,6 +476,17 @@ export default function Studio() {
               color={doc.colors[selected]}
               onColor={color}
               onRestore={restore}
+              strength={doc.strengths?.[selected] ?? 1}
+              onStrength={(value) => {
+                setOriginal(false);
+                setDoc((previous) =>
+                  previous
+                    ? editDocument(previous, {
+                        strengths: { ...previous.strengths, [selected]: value },
+                      })
+                    : previous,
+                );
+              }}
             />
           ) : (
             <div className="select-invitation">
@@ -356,6 +494,26 @@ export default function Studio() {
               <br />
               <span>Elke muur krijgt een eigen kleur.</span>
             </div>
+          )}
+          {doc && surface && (
+            <p className="mask-coverage">
+              {counts[selected]
+                ? `${counts[selected].toLocaleString("nl-NL")} maskerpixels · klaar om te kleuren`
+                : "Dit oppervlak heeft nog geen masker. Teken het eerst in je eigen foto."}
+              {!counts[selected] && (
+                <button
+                  className="text-button"
+                  onClick={() => {
+                    if (editor.current) editor.current.open = true;
+                    setMode("paint");
+                    setShowMask(true);
+                    setOriginal(false);
+                  }}
+                >
+                  Begin masker tekenen
+                </button>
+              )}
+            </p>
           )}
           <button
             className="button undo-button"
@@ -368,8 +526,19 @@ export default function Studio() {
           >
             ↶ Ongedaan maken
           </button>
+          <button
+            className="text-button redo-button"
+            disabled={!doc?.future?.length}
+            onClick={() =>
+              setDoc((previous) =>
+                previous ? redoDocument(previous) : previous,
+              )
+            }
+          >
+            Opnieuw uitvoeren
+          </button>
           {doc && (
-            <details className="mask-editor">
+            <details className="mask-editor" ref={editor}>
               <summary>Maskers corrigeren</summary>
               <p className="help-text">
                 Kies hierboven het doeloppervlak. Schilder om pixels toe te
@@ -393,7 +562,10 @@ export default function Studio() {
                     key={value}
                     aria-pressed={mode === value}
                     disabled={value === "paint" && !selected}
-                    onClick={() => setMode(value)}
+                    onClick={() => {
+                      setMode(value);
+                      setOriginal(false);
+                    }}
                   >
                     {label}
                   </button>
@@ -414,9 +586,20 @@ export default function Studio() {
                 <input
                   type="checkbox"
                   checked={showMask}
-                  onChange={(e) => setShowMask(e.target.checked)}
+                  onChange={(e) => {
+                    setShowMask(e.target.checked);
+                    setOriginal(false);
+                  }}
                 />{" "}
                 Toon maskers
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={protectOthers}
+                  onChange={(e) => setProtectOthers(e.target.checked)}
+                />{" "}
+                Andere oppervlakmaskers beschermen
               </label>
               <p className="help-text">
                 Masker: {doc.mask.width} × {doc.mask.height}. Gum = ID 0 (niet
@@ -451,6 +634,40 @@ export default function Studio() {
               />
             </details>
           )}
+          <div className="project-actions">
+            <h3>Bewaar je ontwerp</h3>
+            <p className="help-text">
+              Download één projectbestand met je foto, maskers en kleuren. Geen
+              account of serveropslag. Open het bestand later om verder te
+              werken.
+            </p>
+            <button
+              className="button small"
+              disabled={!doc || validating}
+              onClick={() => void saveProject()}
+            >
+              Project opslaan
+            </button>
+            <button
+              className="text-button"
+              disabled={validating}
+              onClick={() => projectInput.current?.click()}
+            >
+              Project openen
+            </button>
+            <input
+              ref={projectInput}
+              className="sr-only"
+              aria-label="RoomVision-project openen"
+              type="file"
+              accept=".roomvision,application/json"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void openProject(file);
+              }}
+            />
+          </div>
           <div className="panel-divider" />
           <button className="text-button" onClick={() => demo(true)}>
             Open de testkamer
@@ -483,7 +700,8 @@ export default function Studio() {
           <p className="help-text">
             Eigen foto’s krijgen een leeg masker. Corrigeer dit handmatig of
             importeer een uitgelijnd PNG-ID-masker. Je foto en wijzigingen
-            blijven in deze browsersessie; exporteer het masker voor hergebruik.
+            blijven in deze browsersessie. Sla je project op vóór je een andere
+            foto opent of de pagina herlaadt.
           </p>
           {error && (
             <div className="upload-error" role="alert">

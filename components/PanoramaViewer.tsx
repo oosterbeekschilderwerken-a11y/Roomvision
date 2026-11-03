@@ -1,12 +1,21 @@
 "use client";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { estimateLighting } from "@/lib/lighting";
 import { createColorMaterial } from "@/lib/color-material";
-import { surfaceAt, type Mask, type Colors, type Point } from "@/lib/surfaces";
+import {
+  surfaceAt,
+  type Mask,
+  type Colors,
+  type Point,
+  type Strengths,
+} from "@/lib/surfaces";
 
 type Props = {
   mask: Mask | null;
   colors: Colors;
+  strengths: Strengths;
+  original: boolean;
   selected: number;
   mode: "look" | "paint" | "erase";
   showMask: boolean;
@@ -28,6 +37,8 @@ export default function PanoramaViewer({
   onZoom,
   mask,
   colors,
+  strengths,
+  original,
   selected,
   mode,
   showMask,
@@ -38,6 +49,8 @@ export default function PanoramaViewer({
   const settings = useRef({
     mask,
     colors,
+    strengths,
+    original,
     selected,
     mode,
     showMask,
@@ -49,6 +62,8 @@ export default function PanoramaViewer({
     settings.current = {
       mask,
       colors,
+      strengths,
+      original,
       selected,
       mode,
       showMask,
@@ -56,7 +71,17 @@ export default function PanoramaViewer({
       onPaint,
     };
     synchronize.current?.();
-  }, [mask, colors, selected, mode, showMask, onSelect, onPaint]);
+  }, [
+    mask,
+    colors,
+    strengths,
+    original,
+    selected,
+    mode,
+    showMask,
+    onSelect,
+    onPaint,
+  ]);
   const view = useRef({ longitude: 0, latitude: 0, fov: 75 });
   useEffect(() => {
     view.current.fov = zoom;
@@ -94,6 +119,8 @@ export default function PanoramaViewer({
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
     let lastMask: Mask | null = null;
+    let lightingMask: Mask | null = null;
+    let lightingImage: ImageData | null = null;
     const sync = () => {
       const current = settings.current;
       if (current.mask && lastMask !== current.mask) {
@@ -126,8 +153,14 @@ export default function PanoramaViewer({
         uniforms.idMap.value = empty;
         lastMask = null;
       }
+      if (current.mask && lightingImage && current.mask !== lightingMask) {
+        uniforms.baseLuma.value = estimateLighting(current.mask, lightingImage);
+        lightingMask = current.mask;
+      }
+      uniforms.original.value = current.original ? 1 : 0;
       for (let id = 0; id < 16; id++) {
         const color = current.colors[id];
+        uniforms.surfaceStrength.value[id] = current.strengths[id] ?? 1;
         uniforms.surfaceEnabled.value[id] = color ? 1 : 0;
         if (color) uniforms.surfacePalette.value[id].set(color);
       }
@@ -189,6 +222,32 @@ export default function PanoramaViewer({
             "Deze foto is te groot voor de grafische mogelijkheden van dit apparaat. Probeer een kleiner 2:1-panorama.",
           );
           return;
+        }
+        const lightCanvas = document.createElement("canvas");
+        lightCanvas.width = 512;
+        lightCanvas.height = Math.max(
+          1,
+          Math.round((512 * map.image.height) / map.image.width),
+        );
+        const context = lightCanvas.getContext("2d", {
+          willReadFrequently: true,
+        });
+        if (context) {
+          context.drawImage(
+            map.image,
+            0,
+            0,
+            lightCanvas.width,
+            lightCanvas.height,
+          );
+          lightingImage = context.getImageData(
+            0,
+            0,
+            lightCanvas.width,
+            lightCanvas.height,
+          );
+          lightingMask = null;
+          sync();
         }
         map.colorSpace = THREE.SRGBColorSpace;
         material.map = map;

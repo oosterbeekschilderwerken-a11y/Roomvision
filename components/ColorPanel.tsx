@@ -17,12 +17,16 @@ export default function ColorPanel({
   color,
   onColor,
   onRestore,
+  strength,
+  onStrength,
 }: {
   name: string;
   surfaceKey: string;
   color?: string;
   onColor: (hex: string) => void;
   onRestore: () => void;
+  strength: number;
+  onStrength: (value: number) => void;
 }) {
   return (
     <section className="color-panel" aria-label="Kleurenpaneel">
@@ -54,6 +58,18 @@ export default function ColorPanel({
         />
         <span>{color?.toUpperCase() || "Oorspronkelijke foto"}</span>
       </div>
+      <label className="field-label" htmlFor="color-strength">
+        Kleursterkte: {Math.round(strength * 100)}%
+      </label>
+      <input
+        id="color-strength"
+        type="range"
+        min="0"
+        max="100"
+        value={Math.round(strength * 100)}
+        disabled={!color}
+        onChange={(e) => onStrength(Number(e.target.value) / 100)}
+      />
       <HexField key={color || "original"} color={color} onColor={onColor} />
       <button className="text-button" onClick={onRestore} disabled={!color}>
         Kleur herstellen

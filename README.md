@@ -66,7 +66,7 @@ De browsertests controleren navigatie, een echte WebGL-context en veranderende c
 - `public/demo-panorama.jpg`: lokaal meegeleverde 2:1-testfoto.
 - `TASKS.md`: afgeronde scope en toekomstige planning.
 
-Fase 2 bevat pixelmaskers en onafhankelijke oppervlaktekleuren. Er is geen automatische herkenning, AI, offertefunctionaliteit of projectopslag.
+Fase 2 bevat pixelmaskers en onafhankelijke oppervlaktekleuren. Er is geen automatische herkenning, AI, offertefunctionaliteit of serveropslag. Projecten kun je lokaal downloaden en terugopenen.
 
 ## Voorbeeldfoto en licentie
 
@@ -90,7 +90,7 @@ Open `/studio`. De studio start met de testkamer. De bestaande homepage, buitenf
 2. Kies **Rood**. Alleen de bijbehorende muurpixels kleuren; raam, schilderij, kastje en vloer blijven gelijk.
 3. Klik op de muur rechts van de hoek (of draai eerst met slepen) en kies **Blauw** voor **Muur 2**. Muur 1 blijft rood.
 4. Kijk rondom: de kleuren zitten op de boltextuur en blijven aan dezelfde oppervlakken gekoppeld.
-5. Gebruik **Ongedaan maken** om de laatste kleur- of maskerbewerking terug te nemen. **Kleur herstellen** verwijdert alleen de kleur van het geselecteerde oppervlak.
+5. Gebruik **Ongedaan maken** om de laatste kleur- of maskerbewerking terug te nemen; **Opnieuw uitvoeren** zet deze terug zolang je nog geen nieuwe bewerking hebt gedaan. **Kleur herstellen** verwijdert alleen de kleur van het geselecteerde oppervlak.
 6. Kies alternatieve kleuren uit het palet, de native kleurkiezer of geef een volledige `#RRGGBB`-waarde op en klik **Toepassen**.
 7. Op mobiel: tik om te selecteren, veeg om te kijken en knijp om te zoomen. Het kleurenpaneel staat onder de viewer. Een veeg of knijpgebaar geldt niet als selectie. Met toetsenbord: pijltjes om te kijken, Enter selecteert in het midden; de dropdown biedt ook alle oppervlakken aan.
 
@@ -131,15 +131,15 @@ Voor productiegebruik met echte interieurs zijn nog nodig: een scherp volledig e
 2. Kies **Penseel** om pixels aan dat ID toe te wijzen, **Gum** om pixels op ID 0 te zetten. Kies een radius in maskerpixels. Slepen geeft een doorlopende streek. De borstel werkt ook over de links/rechts-naad; verticaal stopt hij bij de polen.
 3. **Toon maskers** maakt de ID-gebieden zichtbaar; de selectie heeft een gouden rand. Zet dit uit om de kleurrendering te beoordelen.
 4. Kies **Rondkijken** om weer te kunnen roteren. Eén streek is één undo-stap, inclusief meerdere pointermoves. Ook maskerimport en kleurherstel zijn ongedaan te maken (maximaal 20 stappen).
-5. Met **Exporteer masker** download je een PNG-ID-masker; met **Importeer masker** laad je het terug. Een penseel kan bewust een beschermd pixelgebied overschrijven: controleer correcties met de maskervoorvertoning.
+5. Met **Exporteer masker** download je een PNG-ID-masker; met **Importeer masker** laad je het terug. Met **Andere oppervlakmaskers beschermen** (standaard aan) blijft een bestaand ander oppervlak-ID intact tijdens schilderen. ID 0 kan wel worden beschilderd; dit is nodig voor eigen foto’s met een leeg masker. De app kan daarbij nog niet onderscheiden of een ID-0-pixel een raam, meubel of ongemaskeerde muur is. Controleer dit met de maskervoorvertoning. De gum blijft pixels naar ID 0 terugzetten.
 
-Alles blijft lokaal in de browsersessie. Herladen of een ander panorama openen wist kleuren en bewerkingsgeschiedenis. Maskerexport bevat uitsluitend IDs, geen panorama of gekozen kleuren. Er is nog geen compleet projectbestand of permanente opslag.
+Alles blijft lokaal. Gebruik **Project opslaan** vóór herladen of wisselen van panorama: het `.roomvision`-bestand bevat de foto, exacte ID-maskers, alle kleuren en kleursterktes. Met **Project openen** herstel je deze combinatie, ook na herladen. Undo/redo-geschiedenis en de kijkrichting worden niet opgeslagen. Er is geen automatische opslag: zonder gedownload project gaan wijzigingen bij herladen verloren. Losse maskerexport bevat nog steeds uitsluitend IDs, geen panorama of kleuren.
 
 ### Technische werking en grenzen
 
 - `PanoramaViewer.tsx`: Three.js-raycasting vanaf muis/touch naar de bol. De positie wordt via `atan2` en `acos` naar panorama-UV omgezet. Bij een numerieke driehoeksnaad gebruikt dezelfde ray een analytische bolintersectie. U-coördinaten wrappen horizontaal; V wordt bij de polen begrensd.
 - `lib/surfaces.ts`: CPU-ID-lookup, ID-catalogus, ronde/interpolerende pixelborstel en undo-snapshots. Geen screen-space-overlayselectie.
-- `lib/color-material.ts`: WebGL-pigmentshader op de bestaande Three.js-bol. Een nearest-filtered, niet als sRGB behandelde ID-textuur bepaalt welke pixels kleuren. Elke ID heeft een eigen lineaire kleuruniform; panoramahelderheid bepaalt verlichting en detail. Selectieranden gebruiken dezelfde ID-textuur en wrappen op de naad.
+- `lib/color-material.ts`: WebGL-pigmentshader op de bestaande Three.js-bol. Een nearest-filtered, niet als sRGB behandelde ID-textuur bepaalt welke pixels kleuren. Elke ID heeft een eigen lineaire kleuruniform; panoramahelderheid bepaalt verlichting en detail. De shader normaliseert nu per oppervlak met het 75e percentiel van de lineaire beeldhelderheid (berekend uit een verkleinde foto en dat oppervlakmasker). Hierdoor bepaalt een andere, lichtere muur niet de basis van een donkere muur. Selectieranden gebruiken dezelfde ID-textuur en wrappen op de naad.
 - De shader bewaart variaties uit het oorspronkelijke beeld. Dit is geen fysisch gekalibreerde verfvoorspelling: vooral reflecties, overbelichte ramen, zeer donkere texturen en verzadigde originele muren vragen verdere kalibratie. Licht blijft vastgelegd vanuit de oorspronkelijke camera/opname.
 - `ColorPanel.tsx`: palet, native kleurkiezer, HEX-validatie en herstel. `lib/mask-io.ts`: verliesloze PNG-import/-export.
 - Geen nieuwe dependencies toegevoegd. Handmatige correcties veranderen de CPU-ID-map en dezelfde GPU-textuur, zodat selectie en kleur dezelfde grenzen gebruiken.
@@ -149,3 +149,16 @@ Alles blijft lokaal in de browsersessie. Herladen of een ander panorama openen w
 `npm test` controleert UV/polen/naad, echte fixture-IDs en beschermde pixels, ronde penseelstreken over de naad, erase, onafhankelijke kleuren, undo en ongeldige ID-import. De Playwright-tests in `tests/e2e/colors.spec.ts` lezen **screenshots van de gerenderde WebGL-canvas**, niet alleen de React-state: rood op Muur 1, blauw op Muur 2, ongewijzigde meubel-/raampixels, 360° terugdraaien, herstellen, undo, maskerwissen, PNG-export/import en HEX-validatie. Mobiele tikselectie en bestaande pan/zoom/uploadcontroles draaien met Chromium-touch-emulatie. Fysieke iOS-/Android-apparaten zijn nog niet getest.
 
 Voor Vercel: push de wijzigingen naar de gekoppelde GitHub-branch `main`; controleer dat de nieuwe deployment slaagt en open daarna `/studio`. Er zijn geen extra Vercel-variabelen of backendservices nodig.
+
+
+## Vervolg fase 2 — ontwerpen bewaren en beter beoordelen
+
+- **Project opslaan / openen:** één lokaal `.roomvision`-bestand, versie 1. Foto, pixelmasker, kleuren en kleursterktes blijven samen. Geen account, serverupload of automatische cloudopslag. Limiet: 45 MB per projectbestand; de bestaande foto- en resolutielimieten blijven gelden. De import controleert bestandsformaat, foto, maskermaten/IDs, kleuren en sterktes voordat het huidige ontwerp wordt vervangen. Een ongeldige import laat het huidige ontwerp intact.
+- **Toon origineel / Toon kleuren:** vergelijkt hetzelfde camerastandpunt zonder kleuren, selectietint of masker-overlay. Een nieuwe kleur kiezen schakelt terug naar de ingekleurde weergave.
+- **Kleursterkte per oppervlak:** 0% is de originele foto, 100% het berekende pigment; tussenwaarden mengen beide in lineaire kleurruimte. Andere muren behouden hun eigen instellingen. Het blijft een visuele verfbenadering, geen gekalibreerde voorspelling van materiaal of daglicht.
+- **Ongedaan maken / Opnieuw uitvoeren:** kleuren, kleursterktes en maskers delen een geschiedenis van maximaal 20 stappen. Een nieuwe bewerking na undo wist de redo-tak. De geschiedenis blijft alleen in de actieve sessie.
+- **Eigen foto’s:** een leeg oppervlak meldt nu “nog geen masker”. **Begin masker tekenen** opent de correcties, activeert de borstel en toont de maskers. Er wordt geen automatische herkenning gesuggereerd. Andere bestaande oppervlak-IDs zijn standaard beschermd tegen overschilderen.
+
+Nieuwe bronbestanden: `lib/project.ts` (projectformaat, validatie en lokaal downloaden), `lib/lighting.ts` (referentiehelderheid per oppervlak), `tests/projects.test.ts` en `tests/e2e/workflow.spec.ts`. Browsercontroles vergelijken echte gerenderde pixels bij origineel/ingekleurd, 0%-kleursterkte, undo/redo en het terugopenen van een compleet project na herladen.
+
+Een echte eigen woonkamerfoto met correcte maskers is nog niet meegeleverd. Lever daarvoor een volledig 2:1-interieurpanorama aan; de studio ondersteunt handmatig tekenen of importeren van bijpassende maskers. De synthetische testkamer blijft beschikbaar en is als zodanig gemarkeerd.

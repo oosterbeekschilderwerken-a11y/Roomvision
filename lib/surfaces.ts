@@ -11,8 +11,9 @@ export const SURFACES = [
 export type Mask = { width: number; height: number; pixels: Uint8Array };
 export type Point = { u: number; v: number };
 export type Colors = Record<number, string>;
-export type Snapshot = { mask: Mask; colors: Colors };
-export type Document = Snapshot & { history: Snapshot[] };
+export type Strengths = Record<number, number>;
+export type Snapshot = { mask: Mask; colors: Colors; strengths?: Strengths };
+export type Document = Snapshot & { history: Snapshot[]; future?: Snapshot[] };
 export const wrap = (u: number) => ((u % 1) + 1) % 1;
 // Three.js UVs have their origin at bottom-left; raster masks at top-left.
 export function pixelAt(mask: Mask, { u, v }: Point) {
@@ -37,20 +38,47 @@ export function editDocument(
   return {
     ...doc,
     ...change,
+    future: remember ? [] : doc.future,
     history: remember
-      ? [...doc.history.slice(-19), { mask: doc.mask, colors: doc.colors }]
+      ? [
+          ...doc.history.slice(-19),
+          { mask: doc.mask, colors: doc.colors, strengths: doc.strengths },
+        ]
       : doc.history,
   };
 }
 export function undoDocument(doc: Document): Document {
   const previous = doc.history.at(-1);
-  return previous ? { ...previous, history: doc.history.slice(0, -1) } : doc;
+  return previous
+    ? {
+        ...previous,
+        history: doc.history.slice(0, -1),
+        future: [
+          ...(doc.future || []).slice(-19),
+          { mask: doc.mask, colors: doc.colors, strengths: doc.strengths },
+        ],
+      }
+    : doc;
+}
+export function redoDocument(doc: Document): Document {
+  const next = doc.future?.at(-1);
+  return next
+    ? {
+        ...next,
+        history: [
+          ...doc.history.slice(-19),
+          { mask: doc.mask, colors: doc.colors, strengths: doc.strengths },
+        ],
+        future: doc.future!.slice(0, -1),
+      }
+    : doc;
 }
 export function paintMask(
   mask: Mask,
   points: Point[],
   id: number,
   radius: number,
+  protectOthers = false,
 ): Mask {
   if (!Number.isInteger(id) || id < 0 || id > SURFACES.length)
     throw new Error("Onbekend oppervlak-ID");
@@ -64,10 +92,17 @@ export function paintMask(
       y++
     ) {
       for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
-        if ((x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2)
-          pixels[
-            y * mask.width + (((x % mask.width) + mask.width) % mask.width)
-          ] = id;
+        if ((x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2) {
+          const index =
+            y * mask.width + (((x % mask.width) + mask.width) % mask.width);
+          if (
+            !protectOthers ||
+            id === 0 ||
+            pixels[index] === 0 ||
+            pixels[index] === id
+          )
+            pixels[index] = id;
+        }
       }
     }
   }
