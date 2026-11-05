@@ -3,16 +3,6 @@ import { useState } from "react";
 import PaintCatalog from "./PaintCatalog";
 import type { PaintReference } from "@/lib/paint-catalog";
 import { validHex } from "@/lib/surfaces";
-const PALETTE = [
-  ["Warm wit", "#EEE9DD"],
-  ["Zand", "#CBB998"],
-  ["Saliegroen", "#889B7C"],
-  ["Terracotta", "#B9684D"],
-  ["Rood", "#CE3434"],
-  ["Blauw", "#3265C4"],
-  ["Diepgroen", "#335F50"],
-  ["Leisteen", "#596676"],
-];
 export default function ColorPanel({
   name,
   surfaceKey,
@@ -37,18 +27,6 @@ export default function ColorPanel({
       <p className="eyebrow">GESELECTEERD OPPERVLAK</p>
       <h2>{name}</h2>
       <p className="surface-key">{surfaceKey}</p>
-      <div className="color-palette">
-        {PALETTE.map(([label, value]) => (
-          <button
-            key={value}
-            title={label}
-            aria-label={label}
-            aria-pressed={color?.toUpperCase() === value}
-            onClick={() => onColor(value)}
-            style={{ backgroundColor: value }}
-          />
-        ))}
-      </div>
       <PaintCatalog reference={paintReference} onChoose={onColor} />
       <label className="field-label" htmlFor="custom-color">
         Eigen kleur kiezen

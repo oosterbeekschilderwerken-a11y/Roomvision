@@ -9,7 +9,12 @@ export const SURFACES = [
   { id: 7, key: "doorframe_001", name: "Deurkozijn" },
   { id: 8, key: "skirting_001", name: "Plinten" },
 ] as const;
-export type Mask = { width: number; height: number; pixels: Uint8Array };
+export type Mask = {
+  width: number;
+  height: number;
+  pixels: Uint8Array;
+  wrapX?: boolean;
+};
 export type Point = { u: number; v: number };
 export type Colors = Record<number, string>;
 export type Strengths = Record<number, number>;
@@ -23,7 +28,10 @@ export type Document = Snapshot & { history: Snapshot[]; future?: Snapshot[] };
 export const wrap = (u: number) => ((u % 1) + 1) % 1;
 // Three.js UVs have their origin at bottom-left; raster masks at top-left.
 export function pixelAt(mask: Mask, { u, v }: Point) {
-  const x = Math.floor(wrap(u) * mask.width);
+  const x =
+    mask.wrapX === false
+      ? Math.max(0, Math.min(mask.width - 1, Math.floor(u * mask.width)))
+      : Math.floor(wrap(u) * mask.width);
   const y = Math.max(
     0,
     Math.min(mask.height - 1, Math.floor((1 - v) * mask.height)),
@@ -89,7 +97,9 @@ export function paintMask(
     throw new Error("Onbekend oppervlak-ID");
   const pixels = new Uint8Array(mask.pixels);
   function dab(u: number, v: number) {
-    const cx = wrap(u) * mask.width,
+    const cx =
+        (mask.wrapX === false ? Math.max(0, Math.min(1, u)) : wrap(u)) *
+        mask.width,
       cy = (1 - v) * mask.height;
     for (
       let y = Math.max(0, Math.floor(cy - radius));
@@ -97,6 +107,7 @@ export function paintMask(
       y++
     ) {
       for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
+        if (mask.wrapX === false && (x < 0 || x >= mask.width)) continue;
         if ((x - cx) ** 2 + (y - cy) ** 2 <= radius ** 2) {
           const index =
             y * mask.width + (((x % mask.width) + mask.width) % mask.width);
@@ -119,8 +130,10 @@ export function paintMask(
       continue;
     }
     let du = p.u - previous.u;
-    if (du > 0.5) du -= 1;
-    if (du < -0.5) du += 1;
+    if (mask.wrapX !== false) {
+      if (du > 0.5) du -= 1;
+      if (du < -0.5) du += 1;
+    }
     const dv = p.v - previous.v;
     const steps = Math.max(
       1,

@@ -14,32 +14,39 @@ async function clickAt(page: Page, x: number, y: number) {
   await page.mouse.click(box.x + box.width * x, box.y + box.height * y);
 }
 async function samples(page: Page) {
-  const png = await page.locator("canvas").screenshot();
-  return page.evaluate(async (data) => {
-    const image = new Image();
-    image.src = "data:image/png;base64," + data;
-    await image.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = image.width;
-    canvas.height = image.height;
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(image, 0, 0);
-    return [
-      [0.5, 0.35],
-      [0.9, 0.35],
-      [0.5, 0.7],
-      [0.34, 0.45],
-    ].map(([x, y]) =>
-      Array.from(
-        ctx.getImageData(
-          Math.floor(x * canvas.width),
-          Math.floor(y * canvas.height),
-          1,
-          1,
-        ).data,
-      ).slice(0, 3),
-    );
-  }, png.toString("base64"));
+  // Sample the actual framebuffer, independent of fractional CSS scroll/crop.
+  return page.locator("canvas").evaluate(
+    (canvas: HTMLCanvasElement) =>
+      new Promise<number[][]>((resolve, reject) =>
+        requestAnimationFrame(() => {
+          const gl = canvas.getContext("webgl2");
+          if (!gl) {
+            reject(new Error("WebGL framebuffer unavailable"));
+            return;
+          }
+          resolve(
+            [
+              [0.5, 0.35],
+              [0.9, 0.35],
+              [0.5, 0.7],
+              [0.34, 0.45],
+            ].map(([x, y]) => {
+              const p = new Uint8Array(4);
+              gl.readPixels(
+                Math.floor(x * canvas.width),
+                Math.floor((1 - y) * canvas.height),
+                1,
+                1,
+                gl.RGBA,
+                gl.UNSIGNED_BYTE,
+                p,
+              );
+              return [...p].slice(0, 3);
+            }),
+          );
+        }),
+      ),
+  );
 }
 const diff = (a: number[], b: number[]) =>
   Math.max(...a.map((v, i) => Math.abs(v - b[i])));
@@ -58,7 +65,8 @@ test("raycast two walls: independent red and blue pixels, protected furniture/wi
   await expect(
     page.getByRole("heading", { name: "Muur 1", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Rood", exact: true }).click();
+  await page.locator("#hex-color").fill("#ce3434");
+  await page.getByRole("button", { name: "Toepassen", exact: true }).click();
   await page.locator("#surface-select").selectOption("0");
   const red = await samples(page);
   expect(red[0][0]).toBeGreaterThan(red[0][2] * 2);
@@ -68,7 +76,7 @@ test("raycast two walls: independent red and blue pixels, protected furniture/wi
   expect(diff(before[3], red[3])).toBeLessThanOrEqual(1);
   await clickAt(page, 0.9, 0.35);
   await expect(page.locator("#surface-select")).toHaveValue("2");
-  await page.getByRole("button", { name: "Blauw", exact: true }).click();
+  await page.locator("#custom-color").fill("#3265c4");
   await page.locator("#surface-select").selectOption("0");
   const both = await samples(page);
   expect(both[1][2]).toBeGreaterThan(both[1][0] * 2);
@@ -103,7 +111,8 @@ test("pixel mask correction, undo, export/import and HEX validation", async ({
 }) => {
   await open(page);
   await clickAt(page, 0.5, 0.35);
-  await page.getByRole("button", { name: "Rood", exact: true }).click();
+  await page.locator("#hex-color").fill("#ce3434");
+  await page.getByRole("button", { name: "Toepassen", exact: true }).click();
   await page.locator("#surface-select").selectOption("0");
   const before = await samples(page);
   await page.getByText("Maskers corrigeren", { exact: true }).click();
@@ -144,13 +153,11 @@ test("pixel mask correction, undo, export/import and HEX validation", async ({
   await page.getByRole("button", { name: "Rondkijken", exact: true }).click();
   await clickAt(page, 0.5, 0.35);
   await expect(page.locator("#surface-select")).toHaveValue("0");
-  await page
-    .getByLabel("ID-masker importeren")
-    .setInputFiles({
-      name: "restored-mask.png",
-      mimeType: "image/png",
-      buffer: await readFile(path),
-    });
+  await page.getByLabel("ID-masker importeren").setInputFiles({
+    name: "restored-mask.png",
+    mimeType: "image/png",
+    buffer: await readFile(path),
+  });
   await expect(page.getByText(/ID-masker geïmporteerd/)).toBeVisible();
   await clickAt(page, 0.5, 0.35);
   await expect(page.locator("#surface-select")).toHaveValue("1");
@@ -174,7 +181,8 @@ test("mobile tap selects a wall, applies its color and supports undo", async ({
     box.y + box.height * 0.35,
   );
   await expect(page.locator("#surface-select")).toHaveValue("1");
-  await page.getByRole("button", { name: "Rood", exact: true }).tap();
+  await page.locator("#hex-color").fill("#ce3434");
+  await page.getByRole("button", { name: "Toepassen", exact: true }).click();
   await expect(page.locator("#custom-color")).toHaveValue("#ce3434");
   await page.getByRole("button", { name: /Ongedaan maken/ }).tap();
   await expect(
@@ -214,7 +222,8 @@ test("own panorama starts without demo masks; a painted stroke becomes a selecta
   await page.locator("#surface-select").selectOption("0");
   await clickAt(page, 0.5, 0.35);
   await expect(page.locator("#surface-select")).toHaveValue("1");
-  await page.getByRole("button", { name: "Rood", exact: true }).click();
+  await page.locator("#hex-color").fill("#ce3434");
+  await page.getByRole("button", { name: "Toepassen", exact: true }).click();
   await page.locator("#surface-select").selectOption("0");
   const rendered = await samples(page);
   expect(rendered[0][0]).toBeGreaterThan(rendered[0][2] * 2);

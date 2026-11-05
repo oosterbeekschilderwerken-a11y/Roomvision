@@ -58,3 +58,14 @@
 - [x] Datasetlicentie, herkomst en schermbeperkingen documenteren en zichtbaar maken in de app.
 - [x] Unit-tests en desktop-/mobiele browsercontroles voor de RAL-werkwijze.
 - [ ] Geverifieerde eigen kleurcollecties en product-/mengbaarheidsgegevens van Sikkens, Sigma en Flexa verkrijgen en koppelen; huidige merkkeuze is uitsluitend een voorkeur.
+
+## Gewone foto naast 360° — blijvende scope
+
+- [x] Twee expliciete uploadopties; geen 2:1-eis voor gewone foto’s.
+- [x] Vlakke weergave met aspectbehoud, passend in beeld, zoom en begrensde pan.
+- [x] Dezelfde maskers, kleuren, RAL en merkvoorkeuren, undo/redo en projectopslag in beide modi.
+- [x] Fotomaskers stoppen bij beeldranden; alleen panorama’s wrappen horizontaal.
+- [x] Projectversie 3 bewaart het afbeeldingstype; versies 1 en 2 blijven compatibele panoramaprojecten.
+- [x] De acht generieke standaardkleurvakjes verwijderd; RAL, eigen kleur en HEX behouden.
+- [x] Productafspraken vastgelegd in AGENTS.md voor volgende wijzigingen.
+- [x] Unit- en desktop-/mobiele browsercontroles voor beide modi.

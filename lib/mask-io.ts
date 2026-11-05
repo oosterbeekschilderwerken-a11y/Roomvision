@@ -7,11 +7,17 @@ export async function readMask(
   const image = new Image();
   image.src = source;
   await image.decode();
-  if (image.width > 2048 || image.height > 1024)
-    throw new Error("Maskers mogen maximaal 2048 × 1024 pixels bevatten.");
+  if (
+    image.width > 2048 ||
+    image.height > 2048 ||
+    image.width * image.height > 2048 * 1024
+  )
+    throw new Error(
+      "Maskers mogen maximaal 2048 pixels per zijde en circa 2 megapixels bevatten.",
+    );
   if ((width && image.width !== width) || (height && image.height !== height))
     throw new Error(
-      `Het masker moet exact ${width} × ${height} pixels groot zijn en bij dit panorama horen.`,
+      `Het masker moet exact ${width} × ${height} pixels groot zijn en bij deze afbeelding horen.`,
     );
   const canvas = document.createElement("canvas");
   canvas.width = image.width;

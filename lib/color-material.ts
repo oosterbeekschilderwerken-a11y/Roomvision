@@ -14,6 +14,7 @@ export function createColorMaterial() {
     surfaceStrength: { value: Array(16).fill(1) as number[] },
     baseLuma: { value: Array(16).fill(0.55) as number[] },
     original: { value: 0 },
+    horizontalWrap: { value: 1 },
     selectedSurface: { value: 0 },
     showMask: { value: 0 },
   };
@@ -29,9 +30,10 @@ export function createColorMaterial() {
       uniform float surfaceStrength[16];
       uniform float baseLuma[16];
       uniform float original;
+      uniform float horizontalWrap;
       uniform float selectedSurface;
       uniform float showMask;
-      float labelAt(vec2 uv) { return floor(texture2D(idMap, vec2(fract(uv.x), clamp(uv.y, 0.0, 1.0))).r * 255.0 + 0.5); }
+      float labelAt(vec2 uv) { return floor(texture2D(idMap, vec2(horizontalWrap > 0.5 ? fract(uv.x) : clamp(uv.x, 0.0, 1.0), clamp(uv.y, 0.0, 1.0))).r * 255.0 + 0.5); }
     ` + shader.fragmentShader;
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <map_fragment>",
@@ -57,6 +59,6 @@ export function createColorMaterial() {
     `,
     );
   };
-  material.customProgramCacheKey = () => "roomvision-surface-pigment-v2";
+  material.customProgramCacheKey = () => "roomvision-surface-pigment-v3";
   return { material, uniforms };
 }

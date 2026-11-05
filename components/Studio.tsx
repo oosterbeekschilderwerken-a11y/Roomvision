@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PanoramaViewer from "./PanoramaViewer";
 import ColorPanel from "./ColorPanel";
+import { maskDimensions, type ImageKind } from "@/lib/image-kind";
 import type { PaintReference } from "@/lib/paint-catalog";
 import { validateFile, validateDimensions } from "@/lib/panorama";
 import {
@@ -25,6 +26,8 @@ const ROOM = "/room/panorama.png",
   OUTDOOR = "/demo-panorama.jpg";
 export default function Studio() {
   const [source, setSource] = useState(ROOM);
+  const [projection, setProjection] = useState<ImageKind>("panorama");
+  const photoInput = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("Testkamer · pixelmaskers");
   const [zoom, setZoom] = useState(75),
     [resetKey, setResetKey] = useState(0);
@@ -136,7 +139,7 @@ export default function Studio() {
     setDoc(null);
     reset();
   }
-  async function openFile(file: File) {
+  async function openFile(file: File, kind: ImageKind = "panorama") {
     const id = ++requestId.current;
     setError("");
     const invalid = validateFile(file.type, file.size);
@@ -157,6 +160,7 @@ export default function Studio() {
       const invalid = validateDimensions(
         image.naturalWidth,
         image.naturalHeight,
+        kind,
       );
       if (invalid) {
         URL.revokeObjectURL(url);
@@ -164,15 +168,19 @@ export default function Studio() {
         return;
       }
       clean();
-      const scale = Math.min(
-        1,
-        2048 / image.naturalWidth,
-        1024 / image.naturalHeight,
+      const { width, height } = maskDimensions(
+        image.naturalWidth,
+        image.naturalHeight,
+        kind,
       );
-      const width = Math.round(image.naturalWidth * scale);
-      const height = Math.round(image.naturalHeight * scale);
+      setProjection(kind);
       setDoc({
-        mask: { width, height, pixels: new Uint8Array(width * height) },
+        mask: {
+          width,
+          height,
+          pixels: new Uint8Array(width * height),
+          ...(kind === "photo" ? { wrapX: false } : {}),
+        },
         colors: {},
         history: [],
       });
@@ -181,7 +189,9 @@ export default function Studio() {
       setSource(url);
       setName(file.name);
       setNotice(
-        "Eigen panorama geopend zonder maskers. Teken oppervlakken onder Maskers corrigeren of importeer een passend ID-masker.",
+        kind === "photo"
+          ? "Eigen foto geopend zonder maskers. Teken muren onder Maskers corrigeren of importeer een passend ID-masker."
+          : "Eigen panorama geopend zonder maskers. Teken oppervlakken onder Maskers corrigeren of importeer een passend ID-masker.",
       );
     } catch {
       URL.revokeObjectURL(url);
@@ -197,6 +207,7 @@ export default function Studio() {
     ++requestId.current;
     setValidating(false);
     const next = room ? ROOM : OUTDOOR;
+    setProjection("panorama");
     if (source !== next) {
       clean();
       setSource(next);
@@ -224,7 +235,14 @@ export default function Studio() {
       const mask = await readMask(url, doc.mask.width, doc.mask.height);
       if (id === requestId.current) {
         setDoc((previous) =>
-          previous ? editDocument(previous, { mask }) : previous,
+          previous
+            ? editDocument(previous, {
+                mask: {
+                  ...mask,
+                  ...(projection === "photo" ? { wrapX: false } : {}),
+                },
+              })
+            : previous,
         );
         setError("");
         setNotice(
@@ -252,7 +270,7 @@ export default function Studio() {
         throw new Error("Panoramafoto kon niet worden gelezen.");
       const photo = await photoDataURL(await response.blob());
       if (id !== requestId.current) return;
-      downloadProject(encodeProject(name, photo, doc));
+      downloadProject(encodeProject(name, photo, doc, projection));
       setNotice(
         "Project gedownload: foto, maskers en kleuren. Bewaar dit bestand om later verder te werken.",
       );
@@ -296,12 +314,20 @@ export default function Studio() {
           "De foto in dit project is beschadigd of niet leesbaar.",
         );
       }
-      const invalid = validateDimensions(image.width, image.height);
+      const invalid = validateDimensions(
+        image.width,
+        image.height,
+        project.projection,
+      );
       if (invalid) throw new Error(invalid);
-      const scale = Math.min(1, 2048 / image.width, 1024 / image.height);
+      const expected = maskDimensions(
+        image.width,
+        image.height,
+        project.projection,
+      );
       if (
-        project.snapshot.mask.width !== Math.round(image.width * scale) ||
-        project.snapshot.mask.height !== Math.round(image.height * scale)
+        project.snapshot.mask.width !== expected.width ||
+        project.snapshot.mask.height !== expected.height
       )
         throw new Error("De maskermaten passen niet bij de projectfoto.");
       if (id !== requestId.current) {
@@ -310,6 +336,7 @@ export default function Studio() {
       }
       clean();
       setSource(url);
+      setProjection(project.projection);
       setName(project.name);
       setDoc({ ...project.snapshot, history: [], future: [] });
       setLoading(true);
@@ -363,10 +390,11 @@ export default function Studio() {
       <div className="studio-grid">
         <section
           className={`viewer-shell ${mode !== "look" ? "editing-mask" : ""}`}
-          aria-label="Panorama"
+          aria-label={projection === "photo" ? "Gewone foto" : "Panorama"}
         >
           <PanoramaViewer
             source={source}
+            projection={projection}
             zoom={zoom}
             resetKey={resetKey}
             onReady={ready}
@@ -395,7 +423,7 @@ export default function Studio() {
           <div className="viewer-top">
             <span className="viewer-pill">
               <span className="status-dot" />
-              360° KLEURSTUDIO
+              {projection === "photo" ? "FOTO KLEURSTUDIO" : "360° KLEURSTUDIO"}
             </span>
             <span className="viewer-pill file-name" title={name}>
               {name}
@@ -404,7 +432,7 @@ export default function Studio() {
           {loading && (
             <div className="viewer-message" role="status">
               <span className="spinner" />
-              Panorama laden…
+              {projection === "photo" ? "Foto laden…" : "Panorama laden…"}
             </div>
           )}
           {viewerError && (
@@ -415,7 +443,9 @@ export default function Studio() {
           <div className="viewer-bottom">
             <span className="drag-hint">
               {mode === "look"
-                ? "Klik om te kiezen · sleep om te kijken"
+                ? projection === "photo"
+                  ? "Klik om te kiezen · zoom en verschuif"
+                  : "Klik om te kiezen · sleep om te kijken"
                 : mode === "paint"
                   ? `Penseel: ${surface?.name || "kies een oppervlak"}`
                   : "Gum: pixels beschermen"}
@@ -423,16 +453,24 @@ export default function Studio() {
             <div className="viewer-tools">
               <button
                 aria-label="Uitzoomen"
-                onClick={() => setZoom((z) => Math.min(95, z + 10))}
-                disabled={zoom >= 95}
+                onClick={() =>
+                  setZoom((z) =>
+                    Math.min(projection === "photo" ? 75 : 95, z + 10),
+                  )
+                }
+                disabled={zoom >= (projection === "photo" ? 75 : 95)}
               >
                 −
               </button>
               <span>{Math.round((75 / zoom) * 100)}%</span>
               <button
                 aria-label="Inzoomen"
-                onClick={() => setZoom((z) => Math.max(35, z - 10))}
-                disabled={zoom <= 35}
+                onClick={() =>
+                  setZoom((z) =>
+                    Math.max(projection === "photo" ? 15 : 35, z - 10),
+                  )
+                }
+                disabled={zoom <= (projection === "photo" ? 15 : 35)}
               >
                 +
               </button>
@@ -446,6 +484,66 @@ export default function Studio() {
         <aside className="control-panel">
           <p className="eyebrow">GEEF JE RUIMTE KLEUR</p>
           <h2>Jouw kleur. Jouw muur.</h2>
+          <div className="image-upload-options">
+            <h3>Kies je afbeelding</h3>
+            <p className="help-text">
+              Gewone telefoon- of camerafoto, óf een volledig 360°-panorama.
+              Beide ondersteunen dezelfde maskers, kleuren en projectbestanden.
+            </p>
+            <input
+              ref={photoInput}
+              id="photo-upload"
+              className="sr-only"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void openFile(file, "photo");
+              }}
+            />
+            <button
+              className="button upload-button"
+              disabled={validating}
+              onClick={() => photoInput.current?.click()}
+            >
+              Gewone foto openen
+            </button>
+            <p className="file-spec">
+              Liggend, staand of vierkant · geen 2:1-eis · maximaal 25 MB
+            </p>
+            <input
+              ref={input}
+              id="panorama-upload"
+              className="sr-only"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void openFile(file);
+              }}
+            />
+            <button
+              className="button upload-button"
+              disabled={validating}
+              onClick={() => input.current?.click()}
+            >
+              {validating ? "Bestand controleren…" : "Open panoramafoto"}
+            </button>
+            <p className="file-spec">360° · 2:1-verhouding · maximaal 25 MB</p>
+          </div>
+          <p className="help-text">
+            Eigen foto’s krijgen een leeg masker. Corrigeer dit handmatig of
+            importeer een uitgelijnd PNG-ID-masker. Je foto en wijzigingen
+            blijven in deze browsersessie. Sla je project op vóór je een andere
+            foto opent of de pagina herlaadt.
+          </p>
+          {error && (
+            <div className="upload-error" role="alert">
+              {error}
+            </div>
+          )}
           <p className="selection-status" role="status">
             {notice}
           </p>
@@ -616,7 +714,10 @@ export default function Studio() {
               </label>
               <p className="help-text">
                 Masker: {doc.mask.width} × {doc.mask.height}. Gum = ID 0 (niet
-                kleuren). De borstel loopt door over de 360°-naad.
+                kleuren).{" "}
+                {projection === "photo"
+                  ? "De borstel stopt bij de fotorand."
+                  : "De borstel loopt door over de 360°-naad."}
               </p>
               <div className="mask-actions">
                 <button
@@ -690,37 +791,6 @@ export default function Studio() {
             Geen foto en geen AI-herkenning. Ramen, meubels en vloer zijn
             beschermd (ID 0).
           </p>
-          <input
-            ref={input}
-            id="panorama-upload"
-            className="sr-only"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) void openFile(file);
-            }}
-          />
-          <button
-            className="button upload-button"
-            disabled={validating}
-            onClick={() => input.current?.click()}
-          >
-            {validating ? "Bestand controleren…" : "Open panoramafoto"}
-          </button>
-          <p className="file-spec">JPG, PNG of WebP · 2:1 · maximaal 25 MB</p>
-          <p className="help-text">
-            Eigen foto’s krijgen een leeg masker. Corrigeer dit handmatig of
-            importeer een uitgelijnd PNG-ID-masker. Je foto en wijzigingen
-            blijven in deze browsersessie. Sla je project op vóór je een andere
-            foto opent of de pagina herlaadt.
-          </p>
-          {error && (
-            <div className="upload-error" role="alert">
-              {error}
-            </div>
-          )}
           <button
             className="text-button outdoor-button"
             onClick={() => demo(false)}
@@ -730,7 +800,10 @@ export default function Studio() {
         </aside>
       </div>
       <div className="studio-help">
-        <span>✧ Klik of tik op een muur · sleep om rond te kijken</span>
+        <span>
+          ✧ Klik of tik op een muur · sleep om te kijken of een ingezoomde foto
+          te verschuiven
+        </span>
         <p>
           Scroll/knijp: zoom · Pijltjes: kijken · Enter: selecteer midden · +/−:
           zoom

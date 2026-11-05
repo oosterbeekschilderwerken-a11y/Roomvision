@@ -50,10 +50,11 @@ test("original comparison is exact, strength is per surface, undo and redo resto
   await open(page);
   const original = await pixels(page);
   await page.locator("#surface-select").selectOption("1");
-  await page.getByRole("button", { name: "Rood", exact: true }).click();
+  await page.locator("#hex-color").fill("#ce3434");
+  await page.getByRole("button", { name: "Toepassen", exact: true }).click();
   await page.locator("#color-strength").fill("40");
   await page.locator("#surface-select").selectOption("2");
-  await page.getByRole("button", { name: "Blauw", exact: true }).click();
+  await page.locator("#custom-color").fill("#3265c4");
   await page.locator("#surface-select").selectOption("0");
   const colored = await pixels(page);
   expect(delta(colored[0], original[0])).toBeGreaterThan(20);
@@ -85,10 +86,11 @@ test("complete project download reopens after reload with independent colors and
 }) => {
   await open(page);
   await page.locator("#surface-select").selectOption("1");
-  await page.getByRole("button", { name: "Rood", exact: true }).click();
+  await page.locator("#hex-color").fill("#ce3434");
+  await page.getByRole("button", { name: "Toepassen", exact: true }).click();
   await page.locator("#color-strength").fill("60");
   await page.locator("#surface-select").selectOption("2");
-  await page.getByRole("button", { name: "Blauw", exact: true }).click();
+  await page.locator("#custom-color").fill("#3265c4");
   await page.locator("#surface-select").selectOption("0");
   const before = await pixels(page);
   const pending = page.waitForEvent("download");

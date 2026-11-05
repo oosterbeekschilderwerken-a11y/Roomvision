@@ -1,3 +1,4 @@
+import type { ImageKind } from "./image-kind.ts";
 import {
   isPaintReference,
   getRalColor,
@@ -11,7 +12,8 @@ import {
 } from "./surfaces.ts";
 export type Project = {
   format: "roomvision-project";
-  version: 2;
+  version: 3;
+  projection: ImageKind;
   name: string;
   photo: string;
   mask: { width: number; height: number; data: string };
@@ -33,10 +35,12 @@ export function encodeProject(
   name: string,
   photo: string,
   doc: Snapshot,
+  projection: ImageKind = "panorama",
 ): Project {
   return {
     format: "roomvision-project",
-    version: 2,
+    version: 3,
+    projection,
     name,
     photo,
     mask: {
@@ -53,14 +57,15 @@ export function decodeProject(value: unknown): {
   name: string;
   photo: string;
   snapshot: Snapshot;
+  projection: ImageKind;
 } {
   if (
     !record(value) ||
     value.format !== "roomvision-project" ||
-    (value.version !== 1 && value.version !== 2)
+    (value.version !== 1 && value.version !== 2 && value.version !== 3)
   )
     throw new Error(
-      "Dit is geen ondersteund RoomVision-project (versie 1 of 2).",
+      "Dit is geen ondersteund RoomVision-project (versie 1, 2 of 3).",
     );
   if (
     typeof value.name !== "string" ||
@@ -71,7 +76,11 @@ export function decodeProject(value: unknown): {
       value.photo,
     )
   )
-    throw new Error("Het project bevat geen geldige lokale panoramafoto.");
+    throw new Error("Het project bevat geen geldige lokale foto.");
+  const projection: ImageKind =
+    value.version === 3 ? (value.projection as ImageKind) : "panorama";
+  if (projection !== "photo" && projection !== "panorama")
+    throw new Error("Onbekend afbeeldingstype in dit project.");
   const m = value.mask;
   if (
     !record(m) ||
@@ -80,7 +89,8 @@ export function decodeProject(value: unknown): {
     Number(m.width) < 1 ||
     Number(m.width) > 2048 ||
     Number(m.height) < 1 ||
-    Number(m.height) > 1024 ||
+    Number(m.height) > (projection === "photo" ? 2048 : 1024) ||
+    Number(m.width) * Number(m.height) > 2048 * 1024 ||
     typeof m.data !== "string" ||
     m.data.length !== Math.ceil((Number(m.width) * Number(m.height)) / 3) * 4 ||
     !/^[A-Za-z0-9+/]+={0,2}$/.test(m.data)
@@ -115,7 +125,7 @@ export function decodeProject(value: unknown): {
     strengths[Number(id)] = strength;
   }
   const paintRefs: PaintReferences = {};
-  if (value.version === 2) {
+  if (value.version === 2 || value.version === 3) {
     if (!record(value.paintRefs))
       throw new Error("Ongeldige RAL- en merkgegevens.");
     for (const [id, ref] of Object.entries(value.paintRefs)) {
@@ -135,10 +145,16 @@ export function decodeProject(value: unknown): {
     }
   }
   return {
+    projection,
     name: value.name,
     photo: value.photo,
     snapshot: {
-      mask: { width: Number(m.width), height: Number(m.height), pixels },
+      mask: {
+        width: Number(m.width),
+        height: Number(m.height),
+        pixels,
+        ...(projection === "photo" ? { wrapX: false } : {}),
+      },
       colors,
       strengths,
       paintRefs,

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import type { ImageKind } from "@/lib/image-kind";
 import { estimateLighting } from "@/lib/lighting";
 import { createColorMaterial } from "@/lib/color-material";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@/lib/surfaces";
 
 type Props = {
+  projection?: ImageKind;
   mask: Mask | null;
   colors: Colors;
   strengths: Strengths;
@@ -30,6 +32,7 @@ type Props = {
 };
 export default function PanoramaViewer({
   source,
+  projection = "panorama",
   zoom,
   resetKey,
   onReady,
@@ -82,13 +85,15 @@ export default function PanoramaViewer({
     onSelect,
     onPaint,
   ]);
-  const view = useRef({ longitude: 0, latitude: 0, fov: 75 });
+  const view = useRef({ longitude: 0, latitude: 0, fov: 75, panX: 0, panY: 0 });
   useEffect(() => {
     view.current.fov = zoom;
   }, [zoom]);
   useEffect(() => {
     view.current.longitude = 0;
     view.current.latitude = 0;
+    view.current.panX = 0;
+    view.current.panY = 0;
   }, [resetKey]);
   useEffect(() => {
     const container = host.current!;
@@ -100,7 +105,7 @@ export default function PanoramaViewer({
       });
     } catch {
       onError(
-        "De 360°-viewer kan niet starten. Schakel WebGL/hardwareversnelling in of probeer een andere browser.",
+        "De beeldviewer kan niet starten. Schakel WebGL/hardwareversnelling in of probeer een andere browser.",
       );
       return;
     }
@@ -112,12 +117,66 @@ export default function PanoramaViewer({
     renderer.domElement.setAttribute("aria-hidden", "true");
     container.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(view.current.fov, 1, 0.1, 100);
-    const geometry = new THREE.SphereGeometry(50, 64, 40);
-    geometry.scale(-1, 1, 1);
+    if (projection === "photo") scene.background = new THREE.Color("#20352c");
+    const flat = projection === "photo";
+    const camera: THREE.PerspectiveCamera | THREE.OrthographicCamera = flat
+      ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100)
+      : new THREE.PerspectiveCamera(view.current.fov, 1, 0.1, 100);
+    const geometry = flat
+      ? new THREE.PlaneGeometry(2, 2)
+      : new THREE.SphereGeometry(50, 64, 40);
+    if (!flat) geometry.scale(-1, 1, 1);
+    let imageAspect = 1,
+      viewportAspect = 1,
+      halfHeight = 1;
+    function updateCamera() {
+      if (camera instanceof THREE.OrthographicCamera) {
+        halfHeight = Math.max(1, imageAspect / viewportAspect);
+        camera.left = -halfHeight * viewportAspect;
+        camera.right = halfHeight * viewportAspect;
+        camera.top = halfHeight;
+        camera.bottom = -halfHeight;
+        camera.zoom = 75 / view.current.fov;
+        const boundX = Math.max(
+            0,
+            imageAspect - (halfHeight * viewportAspect) / camera.zoom,
+          ),
+          boundY = Math.max(0, 1 - halfHeight / camera.zoom);
+        view.current.panX = THREE.MathUtils.clamp(
+          view.current.panX,
+          -boundX,
+          boundX,
+        );
+        view.current.panY = THREE.MathUtils.clamp(
+          view.current.panY,
+          -boundY,
+          boundY,
+        );
+        camera.position.set(view.current.panX, view.current.panY, 5);
+        camera.lookAt(view.current.panX, view.current.panY, 0);
+      } else {
+        camera.fov = view.current.fov;
+        camera.aspect = viewportAspect;
+        view.current.latitude = THREE.MathUtils.clamp(
+          view.current.latitude,
+          -85,
+          85,
+        );
+        const phi = THREE.MathUtils.degToRad(90 - view.current.latitude),
+          theta = THREE.MathUtils.degToRad(view.current.longitude);
+        camera.lookAt(
+          Math.sin(phi) * Math.cos(theta),
+          Math.cos(phi),
+          Math.sin(phi) * Math.sin(theta),
+        );
+      }
+      camera.updateProjectionMatrix();
+      camera.updateMatrixWorld();
+    }
     const { material, uniforms } = createColorMaterial();
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
+    uniforms.horizontalWrap.value = flat ? 0 : 1;
     let lastMask: Mask | null = null;
     let lightingMask: Mask | null = null;
     let lightingImage: ImageData | null = null;
@@ -135,7 +194,7 @@ export default function PanoramaViewer({
         data.flipY = true;
         data.unpackAlignment = 1;
         data.magFilter = data.minFilter = THREE.NearestFilter;
-        data.wrapS = THREE.RepeatWrapping;
+        data.wrapS = flat ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping;
         data.generateMipmaps = false;
         data.needsUpdate = true;
         uniforms.idMap.value = data;
@@ -173,7 +232,7 @@ export default function PanoramaViewer({
     const raycaster = new THREE.Raycaster();
     function hit(clientX: number, clientY: number): Point | null {
       const rect = container.getBoundingClientRect();
-      camera.updateMatrixWorld();
+      updateCamera();
       sphere.updateMatrixWorld();
       raycaster.setFromCamera(
         new THREE.Vector2(
@@ -182,6 +241,10 @@ export default function PanoramaViewer({
         ),
         camera,
       );
+      if (flat) {
+        const uv = raycaster.intersectObject(sphere)[0]?.uv;
+        return uv ? { u: uv.x, v: uv.y } : null;
+      }
       // Mesh triangles can leave a floating-point gap at the UV seam.
       // Use the same ray's analytic sphere hit there, then derive UVs from position.
       const point =
@@ -219,15 +282,28 @@ export default function PanoramaViewer({
           map.image.height > renderer.capabilities.maxTextureSize
         ) {
           onError(
-            "Deze foto is te groot voor de grafische mogelijkheden van dit apparaat. Probeer een kleiner 2:1-panorama.",
+            "Deze foto is te groot voor de grafische mogelijkheden van dit apparaat. Probeer een kleinere afbeelding.",
           );
           return;
         }
+        imageAspect = map.image.width / map.image.height;
+        if (flat) {
+          sphere.scale.set(imageAspect, 1, 1);
+          updateCamera();
+        }
         const lightCanvas = document.createElement("canvas");
-        lightCanvas.width = 512;
+        const lightScale = Math.min(
+          1,
+          512 / map.image.width,
+          512 / map.image.height,
+        );
+        lightCanvas.width = Math.max(
+          1,
+          Math.round(map.image.width * lightScale),
+        );
         lightCanvas.height = Math.max(
           1,
-          Math.round((512 * map.image.height) / map.image.width),
+          Math.round(map.image.height * lightScale),
         );
         const context = lightCanvas.getContext("2d", {
           willReadFrequently: true,
@@ -259,15 +335,15 @@ export default function PanoramaViewer({
       () => {
         if (!disposed)
           onError(
-            "De panoramafoto kon niet worden geladen. Probeer een ander bestand of open het voorbeeld opnieuw.",
+            "De afbeelding kon niet worden geladen. Probeer een ander bestand of open het voorbeeld opnieuw.",
           );
       },
     );
     const resize = () => {
       const { width, height } = container.getBoundingClientRect();
       renderer.setSize(width, height);
-      camera.aspect = width / Math.max(1, height);
-      camera.updateProjectionMatrix();
+      viewportAspect = width / Math.max(1, height);
+      updateCamera();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(container);
@@ -279,7 +355,11 @@ export default function PanoramaViewer({
       return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
     };
     const setFov = (value: number) => {
-      view.current.fov = THREE.MathUtils.clamp(value, 35, 95);
+      view.current.fov = THREE.MathUtils.clamp(
+        value,
+        flat ? 15 : 35,
+        flat ? 75 : 95,
+      );
       onZoom(view.current.fov);
     };
     const down = (e: PointerEvent) => {
@@ -316,6 +396,7 @@ export default function PanoramaViewer({
         !gesture?.multi
       ) {
         const uv = hit(e.clientX, e.clientY);
+        if (!uv && gesture) gesture.last = null;
         if (uv) {
           settings.current.onPaint(
             gesture?.last ? [gesture.last, uv] : [uv],
@@ -334,8 +415,15 @@ export default function PanoramaViewer({
           setFov((view.current.fov * lastDistance) / Math.max(1, nextDistance));
         lastDistance = nextDistance;
       } else {
-        view.current.longitude -= (e.clientX - previous.x) * 0.15;
-        view.current.latitude += (e.clientY - previous.y) * 0.15;
+        if (flat) {
+          const rect = container.getBoundingClientRect(),
+            scale = (2 * halfHeight) / (75 / view.current.fov) / rect.height;
+          view.current.panX -= (e.clientX - previous.x) * scale;
+          view.current.panY += (e.clientY - previous.y) * scale;
+        } else {
+          view.current.longitude -= (e.clientX - previous.x) * 0.15;
+          view.current.latitude += (e.clientY - previous.y) * 0.15;
+        }
       }
     };
     const up = (e: PointerEvent) => {
@@ -391,15 +479,25 @@ export default function PanoramaViewer({
       )
         return;
       e.preventDefault();
-      if (e.key === "ArrowLeft") view.current.longitude -= 5;
-      if (e.key === "ArrowRight") view.current.longitude += 5;
-      if (e.key === "ArrowUp") view.current.latitude += 5;
-      if (e.key === "ArrowDown") view.current.latitude -= 5;
+      if (flat) {
+        const step = 0.15 / (75 / view.current.fov);
+        if (e.key === "ArrowLeft") view.current.panX -= step;
+        if (e.key === "ArrowRight") view.current.panX += step;
+        if (e.key === "ArrowUp") view.current.panY += step;
+        if (e.key === "ArrowDown") view.current.panY -= step;
+      } else {
+        if (e.key === "ArrowLeft") view.current.longitude -= 5;
+        if (e.key === "ArrowRight") view.current.longitude += 5;
+        if (e.key === "ArrowUp") view.current.latitude += 5;
+        if (e.key === "ArrowDown") view.current.latitude -= 5;
+      }
       if (e.key === "+" || e.key === "=") setFov(view.current.fov - 5);
       if (e.key === "-") setFov(view.current.fov + 5);
       if (e.key === "Home") {
         view.current.longitude = 0;
         view.current.latitude = 0;
+        view.current.panX = 0;
+        view.current.panY = 0;
         setFov(75);
       }
     };
@@ -419,20 +517,7 @@ export default function PanoramaViewer({
     renderer.domElement.addEventListener("webglcontextlost", contextLost);
     const animate = () => {
       frame = requestAnimationFrame(animate);
-      view.current.latitude = THREE.MathUtils.clamp(
-        view.current.latitude,
-        -85,
-        85,
-      );
-      const phi = THREE.MathUtils.degToRad(90 - view.current.latitude);
-      const theta = THREE.MathUtils.degToRad(view.current.longitude);
-      camera.fov = view.current.fov;
-      camera.updateProjectionMatrix();
-      camera.lookAt(
-        Math.sin(phi) * Math.cos(theta),
-        Math.cos(phi),
-        Math.sin(phi) * Math.sin(theta),
-      );
+      updateCamera();
       if (loaded) renderer.render(scene, camera);
     };
     animate();
@@ -456,14 +541,18 @@ export default function PanoramaViewer({
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [source, onReady, onError, onZoom]);
+  }, [source, projection, onReady, onError, onZoom]);
   return (
     <div
       ref={host}
       className="panorama-canvas"
       tabIndex={0}
       role="region"
-      aria-label="Interactieve 360 graden panoramaviewer. Sleep of gebruik de pijltjestoetsen om rond te kijken. Gebruik plus en min om te zoomen. Klik op een oppervlak of druk Enter om het midden te selecteren."
+      aria-label={
+        projection === "photo"
+          ? "Interactieve fotoviewer. Sleep om de ingezoomde foto te verschuiven, gebruik plus en min om te zoomen. Klik op een oppervlak of druk Enter om het midden te selecteren."
+          : "Interactieve 360 graden panoramaviewer. Sleep of gebruik de pijltjestoetsen om rond te kijken. Gebruik plus en min om te zoomen. Klik op een oppervlak of druk Enter om het midden te selecteren."
+      }
     />
   );
 }

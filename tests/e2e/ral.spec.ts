@@ -38,7 +38,7 @@ test("independent RAL references and brand preferences persist through undo, red
   const file = await pending;
   const bytes = await readFile((await file.path())!);
   const saved = JSON.parse(bytes.toString());
-  expect(saved.version).toBe(2);
+  expect(saved.version).toBe(3);
   expect(saved.paintRefs["1"]).toEqual({
     system: "RAL Classic",
     code: "9010",
@@ -51,13 +51,11 @@ test("independent RAL references and brand preferences persist through undo, red
   });
   await page.reload();
   await expect(page.getByText("Panorama laden…")).toHaveCount(0);
-  await page
-    .getByLabel("RoomVision-project openen")
-    .setInputFiles({
-      name: "ral.roomvision",
-      mimeType: "application/json",
-      buffer: bytes,
-    });
+  await page.getByLabel("RoomVision-project openen").setInputFiles({
+    name: "ral.roomvision",
+    mimeType: "application/json",
+    buffer: bytes,
+  });
   await expect(page.getByText(/Project geopend/)).toBeVisible();
   await expect(page.getByText("Panorama laden…")).toHaveCount(0);
   await page.locator("#surface-select").selectOption("1");

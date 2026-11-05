@@ -1,6 +1,6 @@
 # RoomVision — fase 2
 
-Een Nederlandstalige 360°-studio met Next.js App Router, TypeScript, Tailwind CSS en Three.js. De viewer projecteert een echt equirectangulair panorama op de binnenkant van een 3D-bol. Er is geen account, database of API-sleutel nodig.
+Een Nederlandstalige kleurstudio voor **gewone foto’s én 360°-panorama’s**, met Next.js App Router, TypeScript, Tailwind CSS en Three.js. Gewone foto’s staan onvervormd op een vlak met zoom/pan; equirectangulaire panorama’s staan op de binnenkant van een 3D-bol. Beide gebruiken dezelfde pixelmaskers, kleurengine en projectopslag. Er is geen account, database of API-sleutel nodig.
 
 ## Installeren en openen
 
@@ -22,13 +22,14 @@ npm_config_cache=/tmp/roomvision-npm npm ci
 
 ## Gebruik
 
-- Sleep met de muis of veeg met een vinger om 360° rond te kijken.
+- Kies **Gewone foto openen** voor een liggende, staande of vierkante foto. Minimaal 256 × 256 pixels; maximaal 8192 pixels per zijde, circa 33 megapixels en 25 MB. Geen 2:1-eis. De foto past volledig in het venster; na inzoomen kun je hem verschuiven.
+- Kies **Open panoramafoto** voor een volledig 360°-panorama. Sleep met de muis of veeg met een vinger om rond te kijken.
 - Scroll, knijp met twee vingers of gebruik +/− om te zoomen.
 - Geef de viewer toetsenbordfocus en gebruik pijltjes, +/− en Home.
 - De herstelknop zet kijkrichting en zoom terug.
 - Open een eigen JPG-, PNG- of WebP-bestand. De foto wordt alleen lokaal in de browser gelezen, niet verstuurd of opgeslagen. Na herladen verschijnt het voorbeeld weer.
 - Gebruik een volledig 360°-equirectangulair panorama met **2:1-verhouding** (1% afrondingstolerantie), minimaal 1024 × 512 en maximaal 8192 × 4096 pixels en 25 MB. Ook de maximale textuurgrootte van de GPU wordt gecontroleerd.
-- Gewone foto's en smalle telefoonpanorama's zijn ongeschikt. De app controleert formaat, bestandsgrootte, leesbaarheid, resolutie en verhouding. De equirectangulaire projectie is niet automatisch uit beeldinhoud vast te stellen: een gewone foto die tot 2:1 is bijgesneden kan de controles passeren maar wordt vervormd weergegeven.
+- Gewone foto’s en smalle telefoonpanorama’s zijn ongeschikt **als volledig 360°-panorama**; gebruik daarvoor de gewone-foto-optie. De app controleert formaat, bestandsgrootte, leesbaarheid, resolutie en verhouding. De equirectangulaire projectie is niet automatisch uit beeldinhoud vast te stellen: een gewone foto die tot 2:1 is bijgesneden kan de controles passeren maar wordt vervormd weergegeven.
 - WebGL en hardwareversnelling zijn vereist; bij een niet-beschikbare WebGL-context verschijnt uitleg.
 
 ## Controleren
@@ -91,7 +92,7 @@ Open `/studio`. De studio start met de testkamer. De bestaande homepage, buitenf
 3. Klik op de muur rechts van de hoek (of draai eerst met slepen) en kies **Blauw** voor **Muur 2**. Muur 1 blijft rood.
 4. Kijk rondom: de kleuren zitten op de boltextuur en blijven aan dezelfde oppervlakken gekoppeld.
 5. Gebruik **Ongedaan maken** om de laatste kleur- of maskerbewerking terug te nemen; **Opnieuw uitvoeren** zet deze terug zolang je nog geen nieuwe bewerking hebt gedaan. **Kleur herstellen** verwijdert alleen de kleur van het geselecteerde oppervlak.
-6. Kies alternatieve kleuren uit het palet, de native kleurkiezer of geef een volledige `#RRGGBB`-waarde op en klik **Toepassen**.
+6. Kies alternatieve kleuren uit de RAL-catalogus, de native kleurkiezer of geef een volledige `#RRGGBB`-waarde op en klik **Toepassen**.
 7. Op mobiel: tik om te selecteren, veeg om te kijken en knijp om te zoomen. Het kleurenpaneel staat onder de viewer. Een veeg of knijpgebaar geldt niet als selectie. Met toetsenbord: pijltjes om te kijken, Enter selecteert in het midden; de dropdown biedt ook alle oppervlakken aan.
 
 ### Testkamer: reproduceerbaar en expliciet geen echte foto
@@ -108,7 +109,7 @@ node scripts/generate-room.mjs
 
 Dit schrijft deterministisch `panorama.png`, `surface-ids.png` en `fixture.json` naar `public/room/`. De gegenereerde fixture is eigen projectmateriaal. De oorspronkelijke buitenfoto behoudt de hierboven vermelde afzonderlijke CC BY-SA-licentie.
 
-### Maskerformaat en eigen panorama's
+### Maskerformaat en eigen afbeeldingen
 
 Het masker is een **ondoorzichtige RGB-PNG**, met oppervlak-ID als exacte bytewaarde in het rode kanaal; groen en blauw zijn 0. Geen JPEG, antialiasing, transparantie of kleurenpalet-visualisatie als import gebruiken.
 
@@ -121,27 +122,27 @@ Het masker is een **ondoorzichtige RGB-PNG**, met oppervlak-ID als exacte bytewa
 | 7 | doorframe_001 | Deurkozijn |
 | 8 | skirting_001 | Plinten (in de fixture als één groep) |
 
-Een upload krijgt een **leeg** masker met dezelfde projectie, proportioneel verkleind tot maximaal 2048 pixels breed / 1024 hoog. De precieze vereiste maskermaten staan onder **Maskers corrigeren**. Een geïmporteerd masker moet exact deze maten hebben en uitgelijnd zijn met die specifieke foto. De app valideert maten en ID-encoding; ze kan niet automatisch controleren of de getekende grenzen inhoudelijk correct zijn. Testkamermaskers worden nooit stilzwijgend op een eigen foto toegepast.
+Een upload krijgt een **leeg** masker met dezelfde projectie. Bij panorama’s is dat proportioneel verkleind tot maximaal 2048 × 1024 pixels. Bij gewone foto’s zijn beide zijden maximaal 2048 pixels en is het totaal begrensd op 2.097.152 pixels; portretfoto’s behouden hun staande verhouding. De precieze vereiste maskermaten staan onder **Maskers corrigeren**. Een geïmporteerd masker moet exact deze maten hebben en uitgelijnd zijn met die specifieke foto. De app valideert maten en ID-encoding; ze kan niet automatisch controleren of de getekende grenzen inhoudelijk correct zijn. Testkamermaskers worden nooit stilzwijgend op een eigen foto toegepast.
 
-Voor productiegebruik met echte interieurs zijn nog nodig: een scherp volledig equirectangulair interieurpanorama en nauwkeurig nagetekende/gesegmenteerde pixelmaskers voor die opname, inclusief uitsparingen voor meubels, ramen en deurdetails. Deze kunnen nu handmatig in de studio worden getekend of extern worden gemaakt en geïmporteerd. Losse fysieke delen die onafhankelijk moeten kleuren hebben een eigen catalogus-ID nodig; de huidige catalogus bevat de acht bovenstaande delen/groepen.
+Voor productiegebruik met echte interieurs zijn nog nodig: een scherpe gewone interieurfoto of een volledig equirectangulair interieurpanorama, plus nauwkeurig nagetekende/gesegmenteerde pixelmaskers voor die opname, inclusief uitsparingen voor meubels, ramen en deurdetails. Deze kunnen nu handmatig in de studio worden getekend of extern worden gemaakt en geïmporteerd. Losse fysieke delen die onafhankelijk moeten kleuren hebben een eigen catalogus-ID nodig; de huidige catalogus bevat de acht bovenstaande delen/groepen.
 
 ### Handmatig corrigeren
 
 1. Kies het doeloppervlak bovenaan het paneel en open **Maskers corrigeren**.
-2. Kies **Penseel** om pixels aan dat ID toe te wijzen, **Gum** om pixels op ID 0 te zetten. Kies een radius in maskerpixels. Slepen geeft een doorlopende streek. De borstel werkt ook over de links/rechts-naad; verticaal stopt hij bij de polen.
+2. Kies **Penseel** om pixels aan dat ID toe te wijzen, **Gum** om pixels op ID 0 te zetten. Kies een radius in maskerpixels. Slepen geeft een doorlopende streek. Bij panorama’s werkt de borstel ook over de links/rechts-naad; verticaal stopt hij bij de polen. Bij gewone foto’s stopt de borstel aan alle beeldranden en loopt een streek nooit via de andere kant verder.
 3. **Toon maskers** maakt de ID-gebieden zichtbaar; de selectie heeft een gouden rand. Zet dit uit om de kleurrendering te beoordelen.
 4. Kies **Rondkijken** om weer te kunnen roteren. Eén streek is één undo-stap, inclusief meerdere pointermoves. Ook maskerimport en kleurherstel zijn ongedaan te maken (maximaal 20 stappen).
 5. Met **Exporteer masker** download je een PNG-ID-masker; met **Importeer masker** laad je het terug. Met **Andere oppervlakmaskers beschermen** (standaard aan) blijft een bestaand ander oppervlak-ID intact tijdens schilderen. ID 0 kan wel worden beschilderd; dit is nodig voor eigen foto’s met een leeg masker. De app kan daarbij nog niet onderscheiden of een ID-0-pixel een raam, meubel of ongemaskeerde muur is. Controleer dit met de maskervoorvertoning. De gum blijft pixels naar ID 0 terugzetten.
 
-Alles blijft lokaal. Gebruik **Project opslaan** vóór herladen of wisselen van panorama: het `.roomvision`-bestand bevat de foto, exacte ID-maskers, alle kleuren en kleursterktes. Met **Project openen** herstel je deze combinatie, ook na herladen. Undo/redo-geschiedenis en de kijkrichting worden niet opgeslagen. Er is geen automatische opslag: zonder gedownload project gaan wijzigingen bij herladen verloren. Losse maskerexport bevat nog steeds uitsluitend IDs, geen panorama of kleuren.
+Alles blijft lokaal. Gebruik **Project opslaan** vóór herladen of wisselen van afbeelding: het `.roomvision`-bestand bevat de foto, exacte ID-maskers, alle kleuren en kleursterktes. Met **Project openen** herstel je deze combinatie, ook na herladen. Undo/redo-geschiedenis en de kijkrichting worden niet opgeslagen. Er is geen automatische opslag: zonder gedownload project gaan wijzigingen bij herladen verloren. Losse maskerexport bevat nog steeds uitsluitend IDs, geen panorama of kleuren.
 
 ### Technische werking en grenzen
 
-- `PanoramaViewer.tsx`: Three.js-raycasting vanaf muis/touch naar de bol. De positie wordt via `atan2` en `acos` naar panorama-UV omgezet. Bij een numerieke driehoeksnaad gebruikt dezelfde ray een analytische bolintersectie. U-coördinaten wrappen horizontaal; V wordt bij de polen begrensd.
+- `PanoramaViewer.tsx`: gedeelde Three.js-viewer. Bij gewone foto’s gebruikt hij een vlak met orthografische camera, aspectbehoud, passend in beeld, zoom tot 500%, begrensde pan en raycasting naar foto-UV. Bij panorama’s gebruikt hij raycasting vanaf muis/touch naar de bol. De positie wordt via `atan2` en `acos` naar panorama-UV omgezet. Bij een numerieke driehoeksnaad gebruikt dezelfde ray een analytische bolintersectie. U-coördinaten wrappen horizontaal; V wordt bij de polen begrensd.
 - `lib/surfaces.ts`: CPU-ID-lookup, ID-catalogus, ronde/interpolerende pixelborstel en undo-snapshots. Geen screen-space-overlayselectie.
-- `lib/color-material.ts`: WebGL-pigmentshader op de bestaande Three.js-bol. Een nearest-filtered, niet als sRGB behandelde ID-textuur bepaalt welke pixels kleuren. Elke ID heeft een eigen lineaire kleuruniform; panoramahelderheid bepaalt verlichting en detail. De shader normaliseert nu per oppervlak met het 75e percentiel van de lineaire beeldhelderheid (berekend uit een verkleinde foto en dat oppervlakmasker). Hierdoor bepaalt een andere, lichtere muur niet de basis van een donkere muur. Selectieranden gebruiken dezelfde ID-textuur en wrappen op de naad.
+- `lib/color-material.ts`: WebGL-pigmentshader op de bestaande Three.js-bol. Een nearest-filtered, niet als sRGB behandelde ID-textuur bepaalt welke pixels kleuren. Elke ID heeft een eigen lineaire kleuruniform; panoramahelderheid bepaalt verlichting en detail. De shader normaliseert nu per oppervlak met het 75e percentiel van de lineaire beeldhelderheid (berekend uit een verkleinde foto en dat oppervlakmasker). Hierdoor bepaalt een andere, lichtere muur niet de basis van een donkere muur. Selectieranden gebruiken dezelfde ID-textuur: horizontaal herhalen bij panorama’s, clamp aan de randen bij gewone foto’s.
 - De shader bewaart variaties uit het oorspronkelijke beeld. Dit is geen fysisch gekalibreerde verfvoorspelling: vooral reflecties, overbelichte ramen, zeer donkere texturen en verzadigde originele muren vragen verdere kalibratie. Licht blijft vastgelegd vanuit de oorspronkelijke camera/opname.
-- `ColorPanel.tsx`: palet, native kleurkiezer, HEX-validatie en herstel. `lib/mask-io.ts`: verliesloze PNG-import/-export.
+- `ColorPanel.tsx`: RAL-catalogus, native kleurkiezer, HEX-validatie en herstel. `lib/mask-io.ts`: verliesloze PNG-import/-export.
 - Geen nieuwe dependencies toegevoegd. Handmatige correcties veranderen de CPU-ID-map en dezelfde GPU-textuur, zodat selectie en kleur dezelfde grenzen gebruiken.
 
 ### Validatie van fase 2
@@ -153,7 +154,7 @@ Voor Vercel: push de wijzigingen naar de gekoppelde GitHub-branch `main`; contro
 
 ## Vervolg fase 2 — ontwerpen bewaren en beter beoordelen
 
-- **Project opslaan / openen:** één lokaal `.roomvision`-bestand, versie 2 (versie 1 blijft leesbaar). Foto, pixelmasker, kleuren en kleursterktes blijven samen. Geen account, serverupload of automatische cloudopslag. Limiet: 45 MB per projectbestand; de bestaande foto- en resolutielimieten blijven gelden. De import controleert bestandsformaat, foto, maskermaten/IDs, kleuren en sterktes voordat het huidige ontwerp wordt vervangen. Een ongeldige import laat het huidige ontwerp intact.
+- **Project opslaan / openen:** één lokaal `.roomvision`-bestand, versie 3 (versies 1 en 2 blijven leesbaar). Foto, pixelmasker, kleuren en kleursterktes blijven samen. Geen account, serverupload of automatische cloudopslag. Limiet: 45 MB per projectbestand; de bestaande foto- en resolutielimieten blijven gelden. De import controleert bestandsformaat, foto, maskermaten/IDs, kleuren en sterktes voordat het huidige ontwerp wordt vervangen. Een ongeldige import laat het huidige ontwerp intact.
 - **Toon origineel / Toon kleuren:** vergelijkt hetzelfde camerastandpunt zonder kleuren, selectietint of masker-overlay. Een nieuwe kleur kiezen schakelt terug naar de ingekleurde weergave.
 - **Kleursterkte per oppervlak:** 0% is de originele foto, 100% het berekende pigment; tussenwaarden mengen beide in lineaire kleurruimte. Andere muren behouden hun eigen instellingen. Het blijft een visuele verfbenadering, geen gekalibreerde voorspelling van materiaal of daglicht.
 - **Ongedaan maken / Opnieuw uitvoeren:** kleuren, kleursterktes en maskers delen een geschiedenis van maximaal 20 stappen. Een nieuwe bewerking na undo wist de redo-tak. De geschiedenis blijft alleen in de actieve sessie.
@@ -161,7 +162,7 @@ Voor Vercel: push de wijzigingen naar de gekoppelde GitHub-branch `main`; contro
 
 Nieuwe bronbestanden: `lib/project.ts` (projectformaat, validatie en lokaal downloaden), `lib/lighting.ts` (referentiehelderheid per oppervlak), `tests/projects.test.ts` en `tests/e2e/workflow.spec.ts`. Browsercontroles vergelijken echte gerenderde pixels bij origineel/ingekleurd, 0%-kleursterkte, undo/redo en het terugopenen van een compleet project na herladen.
 
-Een echte eigen woonkamerfoto met correcte maskers is nog niet meegeleverd. Lever daarvoor een volledig 2:1-interieurpanorama aan; de studio ondersteunt handmatig tekenen of importeren van bijpassende maskers. De synthetische testkamer blijft beschikbaar en is als zodanig gemarkeerd.
+Een echte eigen woonkamerfoto met correcte maskers is nog niet meegeleverd. Lever daarvoor een gewone interieurfoto of een volledig 2:1-interieurpanorama aan; de studio ondersteunt handmatig tekenen of importeren van bijpassende maskers. De synthetische testkamer blijft beschikbaar en is als zodanig gemarkeerd.
 
 
 ## RAL-kiezer en gewenste verfmerken
@@ -172,6 +173,19 @@ RAL is een merkonafhankelijk systeem. Sikkens, Sigma en Flexa zijn hier merkvoor
 
 Bron: `ral-colors@1.0.1` onder MIT; de gepinde gegevens staan in `data/ral-classic.json`, bronverantwoording in `data/README.md` en de licentie in `licenses/ral-colors-MIT.txt`. Veelgebruikte Nederlandse namen zijn toegevoegd naast de oorspronkelijke namen. Waar bron-RGB en bron-HEX verschillen gebruikt de app consequent bron-HEX. Deze waarden zijn **niet-officiële schermbenaderingen**, geen gekalibreerde of gegarandeerd volledige actuele RAL-catalogus. Metallic-, parel- en fluorescente effecten worden niet nagebootst. Gebruik fysieke kleurstalen voor een definitieve verfkeuze. De pagina `/color-sources` licht dit ook in de app toe. Er is geen nieuwe runtime-dependency of externe kleur-API nodig.
 
-Per oppervlak worden zowel de HEX-schermkleur als `{ system: "RAL Classic", code: "9010", brand: "Sikkens" }` bewaard. Merkvoorkeur is ook `null` mogelijk. Kleursterkte, maskerbewerkingen en undo/redo behouden die referentie. Projectformaat **versie 2** bewaart deze metadata; oude versie-1-projecten openen met eigen HEX-kleuren zonder achteraf een RAL-code te raden. Een eigen paletkleur, HEX-invoer of kleurkiezer wist de RAL-referentie van dat oppervlak, ook wanneer de HEX toevallig hetzelfde is. Bij projectimport moeten code, toegestane merkvoorkeur en opgeslagen HEX overeenkomen met de gepinde dataset.
+Per oppervlak worden zowel de HEX-schermkleur als `{ system: "RAL Classic", code: "9010", brand: "Sikkens" }` bewaard. Merkvoorkeur is ook `null` mogelijk. Kleursterkte, maskerbewerkingen en undo/redo behouden die referentie. Projectformaat **versie 3** bewaart deze metadata en het afbeeldingstype; versie 2 met RAL-metadata blijft leesbaar en oude versie-1-projecten openen met eigen HEX-kleuren zonder achteraf een RAL-code te raden. HEX-invoer of een eigen kleur uit de kleurkiezer wist de RAL-referentie van dat oppervlak, ook wanneer de HEX toevallig hetzelfde is. Bij projectimport moeten code, toegestane merkvoorkeur en opgeslagen HEX overeenkomen met de gepinde dataset.
 
 Nieuwe controles: unieke codes en geldige HEX-waarden, accentongevoelig zoeken, ongeldige referenties, versie-1-compatibiliteit, metadata bij undo/redo en projectimport. Desktop- en mobiele browsertests controleren RAL 9010 met Sikkens op één muur, RAL 7016 met Sigma/Flexa op een andere, herstel na herladen, eigen HEX zonder misleidende RAL-aanduiding en de bronvermelding. Pixelcontroles gebruiken screenshots en, bij vergelijking van identieke weergaves na scrollen, de echte WebGL-framebuffer om CSS-resampling uit te sluiten.
+
+
+## Gewone foto en 360° als blijvende productkeuze
+
+- **Gewone foto openen:** vlak beeld met originele verhoudingen, zoomen en verschuiven via muis, touch en toetsenbord. De gehele foto past bij 100%; de herstelknop zet zoom en verschuiving terug. Klikken op lege ruimte naast de foto selecteert geen muur.
+- **Open panoramafoto:** bestaande volledige 360°-weergave met de strikte 2:1-controle en horizontale naad.
+- Er wordt nooit op basis van de beeldverhouding geraden of een afbeelding een panorama is: de gekozen uploadknop bepaalt de modus. Zelfs een 2:1-foto kan dus als vlakke foto worden geopend.
+- Beide modi delen RAL/merkvoorkeuren, eigen kleur en HEX, kleursterkte, origineelvergelijking, ronde maskerpenselen, gum, undo/redo en maskerimport/-export. Eigen afbeeldingen hebben eerst handmatige of geïmporteerde maskers nodig; er is geen automatische muurherkenning toegevoegd.
+- Projectversie 3 bewaart `projection: "photo" | "panorama"`. Oudere versies 1 en 2 openen altijd als panorama, passend bij hun oorspronkelijke gedrag. Nieuwe fotoprojecten herstellen hun vlakke weergave en maskers zonder naadwrapping.
+- De acht generieke standaardkleurvakjes zijn op gebruikersverzoek verwijderd. De RAL-catalogus, native kleurkiezer en HEX-invoer blijven bestaan.
+- Deze afspraken staan ook in `AGENTS.md`: toekomstige wijzigingen moeten beide invoertypes ondersteunen en testen.
+
+`lib/image-kind.ts` bevat de gedeelde modusdefinitie en maskermaatberekening. `tests/image-kind.test.ts` controleert gewone beeldverhoudingen, geheugenlimieten, fotomaskerranden en compatibele projectbestanden. `tests/e2e/photo.spec.ts` gebruikt expliciet synthetische 2D-testbeelden om vlakke selectie, onafhankelijke muurkleuren, meubelbescherming, RAL, vergelijking, foto-opslag/herstel, zoom/pan, terugschakelen naar 360°, staande mobiele foto’s, penseel, undo en knijpzoom te controleren.
