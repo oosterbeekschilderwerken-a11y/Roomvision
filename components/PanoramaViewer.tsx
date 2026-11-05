@@ -117,7 +117,11 @@ export default function PanoramaViewer({
     renderer.domElement.setAttribute("aria-hidden", "true");
     container.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    if (projection === "photo") scene.background = new THREE.Color("#20352c");
+    if (projection === "photo")
+      scene.background = new THREE.Color(
+        getComputedStyle(container).getPropertyValue("--viewer-bg").trim() ||
+          "#142235",
+      );
     const flat = projection === "photo";
     const camera: THREE.PerspectiveCamera | THREE.OrthographicCamera = flat
       ? new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100)

@@ -14,3 +14,5 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - Ordinary photos must keep their aspect ratio, fit in the frame and support zoom/pan without spherical distortion. Photo mask edges clamp; only panorama mask edges wrap horizontally. Never silently convert a user's selected image kind.
 - Keep the image kind in project files and retain compatibility with older panorama project formats.
 - The user removed the eight generic preset color tiles. Do not reintroduce them unless explicitly requested; retain RAL, native custom color and HEX controls.
+
+- Website branding follows the user-supplied Oosterbeek Schilderwerken screenshot: darkened accent blue `#103F86`, navy text `#142235`, cool near-white `#F5F7FB`, white panels and pale blue accents. Use the CSS theme tokens for interface colors. Keep RAL/paint data, uploaded images and saved surface colors independent from website branding.

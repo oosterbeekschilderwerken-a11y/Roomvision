@@ -189,3 +189,15 @@ Nieuwe controles: unieke codes en geldige HEX-waarden, accentongevoelig zoeken, 
 - Deze afspraken staan ook in `AGENTS.md`: toekomstige wijzigingen moeten beide invoertypes ondersteunen en testen.
 
 `lib/image-kind.ts` bevat de gedeelde modusdefinitie en maskermaatberekening. `tests/image-kind.test.ts` controleert gewone beeldverhoudingen, geheugenlimieten, fotomaskerranden en compatibele projectbestanden. `tests/e2e/photo.spec.ts` gebruikt expliciet synthetische 2D-testbeelden om vlakke selectie, onafhankelijke muurkleuren, meubelbescherming, RAL, vergelijking, foto-opslag/herstel, zoom/pan, terugschakelen naar 360°, staande mobiele foto’s, penseel, undo en knijpzoom te controleren.
+
+
+## Huisstijl van de website
+
+De interfacekleuren zijn visueel afgestemd op de aangeleverde screenshot van oosterbeekschilderwerken.com. Op verzoek is het krachtige blauw iets donkerder uitgevoerd:
+
+- Accent en primaire knoppen: `#103F86`; hover: `#0B3069`.
+- Donkerblauwe tekst en vieweromlijsting: `#142235`.
+- Lichte blauwgrijze pagina: `#F5F7FB`; witte panelen: `#FFFFFF`.
+- Zachte accenten: `#DCE7F8`; ondersteunende panelen: `#EDF3FC`.
+
+De bronwebsite was vanuit deze omgeving niet bereikbaar; dit is dus een benadering van de screenshot, geen uitgelezen officieel huisstijlbestand. De tokens in `app/globals.css` sturen homepage, studio, formulieren, focus/hover, panelen en catalogusomlijsting. Ook favicon en mobiele browserkleur volgen de huisstijl. De kleuren in RAL-data, eigen foto's, muurverf en opgeslagen projecten worden hierdoor niet aangepast. Beide beeldmodi blijven dezelfde bediening gebruiken.
