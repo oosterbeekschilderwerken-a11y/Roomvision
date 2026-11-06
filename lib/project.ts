@@ -1,3 +1,4 @@
+import type { ColorVariant } from "./variants.ts";
 import type { ImageKind } from "./image-kind.ts";
 import {
   isPaintReference,
@@ -12,7 +13,8 @@ import {
 } from "./surfaces.ts";
 export type Project = {
   format: "roomvision-project";
-  version: 3;
+  version: 4;
+  variants: ColorVariant[];
   projection: ImageKind;
   name: string;
   photo: string;
@@ -39,7 +41,8 @@ export function encodeProject(
 ): Project {
   return {
     format: "roomvision-project",
-    version: 3,
+    version: 4,
+    variants: structuredClone(doc.variants || []),
     projection,
     name,
     photo,
@@ -53,6 +56,49 @@ export function encodeProject(
     paintRefs: { ...doc.paintRefs },
   };
 }
+function decodeColors(value: Record<string, unknown>, hasReferences: boolean) {
+  if (!record(value.colors) || !record(value.strengths))
+    throw new Error("Ongeldige projectkleuren.");
+  const colors: Colors = {},
+    strengths: Strengths = {};
+  for (const [id, color] of Object.entries(value.colors)) {
+    if (!/^[1-8]$/.test(id) || typeof color !== "string" || !validHex(color))
+      throw new Error("Ongeldige projectkleuren.");
+    colors[Number(id)] = color;
+  }
+  for (const [id, strength] of Object.entries(value.strengths)) {
+    if (
+      !/^[1-8]$/.test(id) ||
+      typeof strength !== "number" ||
+      !Number.isFinite(strength) ||
+      strength < 0 ||
+      strength > 1
+    )
+      throw new Error("Ongeldige kleursterkte.");
+    strengths[Number(id)] = strength;
+  }
+  const paintRefs: PaintReferences = {};
+  if (hasReferences) {
+    if (!record(value.paintRefs))
+      throw new Error("Ongeldige RAL- en merkgegevens.");
+    for (const [id, ref] of Object.entries(value.paintRefs)) {
+      if (
+        !/^[1-8]$/.test(id) ||
+        !isPaintReference(ref) ||
+        colors[Number(id)]?.toUpperCase() !== getRalColor(ref.code)?.hex
+      )
+        throw new Error(
+          "De RAL-code, schermkleur of merkvoorkeur in dit project klopt niet.",
+        );
+      paintRefs[Number(id)] = {
+        system: ref.system,
+        code: ref.code,
+        brand: ref.brand,
+      };
+    }
+  }
+  return { colors, strengths, paintRefs };
+}
 export function decodeProject(value: unknown): {
   name: string;
   photo: string;
@@ -62,10 +108,11 @@ export function decodeProject(value: unknown): {
   if (
     !record(value) ||
     value.format !== "roomvision-project" ||
-    (value.version !== 1 && value.version !== 2 && value.version !== 3)
+    ![1, 2, 3, 4].includes(Number(value.version)) ||
+    typeof value.version !== "number"
   )
     throw new Error(
-      "Dit is geen ondersteund RoomVision-project (versie 1, 2 of 3).",
+      "Dit is geen ondersteund RoomVision-project (versie 1 t/m 4).",
     );
   if (
     typeof value.name !== "string" ||
@@ -78,7 +125,9 @@ export function decodeProject(value: unknown): {
   )
     throw new Error("Het project bevat geen geldige lokale foto.");
   const projection: ImageKind =
-    value.version === 3 ? (value.projection as ImageKind) : "panorama";
+    value.version === 3 || value.version === 4
+      ? (value.projection as ImageKind)
+      : "panorama";
   if (projection !== "photo" && projection !== "panorama")
     throw new Error("Onbekend afbeeldingstype in dit project.");
   const m = value.mask;
@@ -104,44 +153,36 @@ export function decodeProject(value: unknown): {
   const pixels = Uint8Array.from(binary, (c) => c.charCodeAt(0));
   if (pixels.some((id) => id > 8))
     throw new Error("Het projectmasker bevat onbekende oppervlak-ID’s.");
-  if (!record(value.colors) || !record(value.strengths))
-    throw new Error("Ongeldige projectkleuren.");
-  const colors: Colors = {},
-    strengths: Strengths = {};
-  for (const [id, color] of Object.entries(value.colors)) {
-    if (!/^[1-8]$/.test(id) || typeof color !== "string" || !validHex(color))
-      throw new Error("Ongeldige projectkleuren.");
-    colors[Number(id)] = color;
-  }
-  for (const [id, strength] of Object.entries(value.strengths)) {
-    if (
-      !/^[1-8]$/.test(id) ||
-      typeof strength !== "number" ||
-      !Number.isFinite(strength) ||
-      strength < 0 ||
-      strength > 1
-    )
-      throw new Error("Ongeldige kleursterkte.");
-    strengths[Number(id)] = strength;
-  }
-  const paintRefs: PaintReferences = {};
-  if (value.version === 2 || value.version === 3) {
-    if (!record(value.paintRefs))
-      throw new Error("Ongeldige RAL- en merkgegevens.");
-    for (const [id, ref] of Object.entries(value.paintRefs)) {
+  const { colors, strengths, paintRefs } = decodeColors(
+    value,
+    value.version !== 1,
+  );
+  const variants: ColorVariant[] = [];
+  if (value.version === 4) {
+    if (!Array.isArray(value.variants) || value.variants.length > 8)
+      throw new Error("Een project mag maximaal acht kleurvarianten bevatten.");
+    const ids = new Set<string>();
+    for (const item of value.variants) {
       if (
-        !/^[1-8]$/.test(id) ||
-        !isPaintReference(ref) ||
-        colors[Number(id)]?.toUpperCase() !== getRalColor(ref.code)?.hex
+        !record(item) ||
+        typeof item.id !== "string" ||
+        !/^[a-z0-9-]{1,64}$/.test(item.id) ||
+        ids.has(item.id) ||
+        typeof item.name !== "string" ||
+        !item.name.trim() ||
+        item.name.length > 60
       )
-        throw new Error(
-          "De RAL-code, schermkleur of merkvoorkeur in dit project klopt niet.",
-        );
-      paintRefs[Number(id)] = {
-        system: ref.system,
-        code: ref.code,
-        brand: ref.brand,
-      };
+        throw new Error("Ongeldige kleurvariant.");
+      // Variant color state uses the same validators as the active design.
+      const parsed = decodeColors(item, true);
+      ids.add(item.id);
+      variants.push({
+        id: item.id,
+        name: item.name.trim(),
+        colors: parsed.colors,
+        strengths: parsed.strengths,
+        paintRefs: parsed.paintRefs,
+      });
     }
   }
   return {
@@ -158,6 +199,7 @@ export function decodeProject(value: unknown): {
       colors,
       strengths,
       paintRefs,
+      variants,
     },
   };
 }

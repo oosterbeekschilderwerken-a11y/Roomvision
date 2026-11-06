@@ -16,3 +16,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - The user removed the eight generic preset color tiles. Do not reintroduce them unless explicitly requested; retain RAL, native custom color and HEX controls.
 
 - Website branding follows the user-supplied Oosterbeek Schilderwerken screenshot: darkened accent blue `#103F86`, navy text `#142235`, cool near-white `#F5F7FB`, white panels and pale blue accents. Use the CSS theme tokens for interface colors. Keep RAL/paint data, uploaded images and saved surface colors independent from website branding.
+
+- Own uploads must have a usable in-view selection route without requiring a pre-made ID mask: direct connected-color selection plus an explicit polygon outline fallback. Do not regress to a dead empty-mask upload flow. Test with uploads that have no predefined masks, in both image modes.
+- Connected-color selection is not semantic AI recognition. Keep its limits visible, preserve the outline/gum correction workflow, and never claim guaranteed exclusion of same-colored furniture.
+- Phase 3 provides up to eight shared-mask color variants and clean current-view PNG export. Retain project-format backward compatibility and verify exported image pixels, not just download events.

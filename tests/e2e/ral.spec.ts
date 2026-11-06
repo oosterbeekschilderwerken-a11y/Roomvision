@@ -38,7 +38,7 @@ test("independent RAL references and brand preferences persist through undo, red
   const file = await pending;
   const bytes = await readFile((await file.path())!);
   const saved = JSON.parse(bytes.toString());
-  expect(saved.version).toBe(3);
+  expect(saved.version).toBe(4);
   expect(saved.paintRefs["1"]).toEqual({
     system: "RAL Classic",
     code: "9010",

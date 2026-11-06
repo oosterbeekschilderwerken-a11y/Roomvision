@@ -1,6 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import PanoramaViewer from "./PanoramaViewer";
+import PanoramaViewer, { type ViewerCapture } from "./PanoramaViewer";
+import VariantPanel from "./VariantPanel";
+import {
+  selectConnected,
+  outlineMask,
+  readSelectionImage,
+  type SelectionImage,
+} from "@/lib/selection";
+import { downloadPNG, type ColorVariant } from "@/lib/variants";
 import ColorPanel from "./ColorPanel";
 import { maskDimensions, type ImageKind } from "@/lib/image-kind";
 import type { PaintReference } from "@/lib/paint-catalog";
@@ -39,6 +47,22 @@ export default function Studio() {
   const [selected, setSelected] = useState(0);
   const [original, setOriginal] = useState(false);
   const [protectOthers, setProtectOthers] = useState(true);
+  const [selectionTool, setSelectionTool] = useState<
+    "magic" | "outline" | "navigate"
+  >("navigate");
+  const [tolerance, setTolerance] = useState(28),
+    [selecting, setSelecting] = useState(false);
+  const [addToSelected, setAddToSelected] = useState(false);
+  const [draftPoints, setDraftPoints] = useState<Point[]>([]),
+    [draftTarget, setDraftTarget] = useState(1);
+  const captureRef = useRef<ViewerCapture | null>(null);
+  const selectionRequest = useRef(0);
+  const selectionImage = useRef<{
+    source: string;
+    image: SelectionImage;
+  } | null>(null);
+  const ownImage = source !== ROOM && source !== OUTDOOR;
+
   const projectInput = useRef<HTMLInputElement>(null);
   const editor = useRef<HTMLDetailsElement>(null);
   const currentMask = doc?.mask;
@@ -131,6 +155,11 @@ export default function Studio() {
     setResetKey((n) => n + 1);
   }
   function clean() {
+    selectionRequest.current++;
+    selectionImage.current = null;
+    setSelecting(false);
+    setDraftPoints([]);
+    setSelectionTool("navigate");
     setOriginal(false);
     setSelected(0);
     setMode("look");
@@ -174,6 +203,7 @@ export default function Studio() {
         kind,
       );
       setProjection(kind);
+      setSelectionTool("magic");
       setDoc({
         mask: {
           width,
@@ -190,8 +220,8 @@ export default function Studio() {
       setName(file.name);
       setNotice(
         kind === "photo"
-          ? "Eigen foto geopend zonder maskers. Teken muren onder Maskers corrigeren of importeer een passend ID-masker."
-          : "Eigen panorama geopend zonder maskers. Teken oppervlakken onder Maskers corrigeren of importeer een passend ID-masker.",
+          ? "Je foto is klaar. Klik op een muur en kies daarna een kleur. Gebruik Muur tekenen voor een precieze omtrek."
+          : "Je panorama is klaar. Klik op een muur en kies een kleur, of geef de omtrek aan met Muur tekenen.",
       );
     } catch {
       URL.revokeObjectURL(url);
@@ -245,6 +275,8 @@ export default function Studio() {
             : previous,
         );
         setError("");
+        setSelectionTool("navigate");
+        setDraftPoints([]);
         setNotice(
           "ID-masker geïmporteerd. Controleer de uitlijning met Toon maskers.",
         );
@@ -339,6 +371,11 @@ export default function Studio() {
       setProjection(project.projection);
       setName(project.name);
       setDoc({ ...project.snapshot, history: [], future: [] });
+      setSelectionTool(
+        project.snapshot.mask.pixels.some((id) => id > 0)
+          ? "navigate"
+          : "magic",
+      );
       setLoading(true);
       setViewerError("");
       setNotice(
@@ -353,6 +390,168 @@ export default function Studio() {
     } finally {
       if (id === requestId.current) setValidating(false);
     }
+  }
+  function nextTarget() {
+    if (selected && (addToSelected || counts[selected] === 0)) return selected;
+    return [1, 2, 3, 4].find((id) => counts[id] === 0) || 0;
+  }
+  function chooseTool(tool: "magic" | "outline" | "navigate") {
+    setError("");
+    setMode("look");
+    setOriginal(false);
+    setShowMask(false);
+    setDraftPoints([]);
+    if (tool === "outline") {
+      const target = nextTarget();
+      if (!target) {
+        setNotice(
+          "Alle vier muurvlakken zijn in gebruik. Kies een muur en schakel Toevoegen aan gekozen muur in.",
+        );
+        return;
+      }
+      setDraftTarget(target);
+      setSelected(target);
+      setNotice(
+        "Klik of tik de hoeken rondom de muur aan. Je kunt tussendoor slepen om rond te kijken. Kies daarna Muur vastleggen.",
+      );
+    }
+    setSelectionTool(tool);
+  }
+  function finishOutline() {
+    if (!doc) return;
+    try {
+      const mask = outlineMask(
+        doc.mask,
+        draftPoints,
+        draftTarget,
+        protectOthers,
+      );
+      setDoc((previous) =>
+        previous ? editDocument(previous, { mask }) : previous,
+      );
+      setSelected(draftTarget);
+      setDraftPoints([]);
+      setSelectionTool("magic");
+      setNotice(
+        `${SURFACES.find((s) => s.id === draftTarget)?.name} is vastgelegd. Kies nu een kleur. Gebruik de gum voor ramen en meubels.`,
+      );
+      setError("");
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "De muuromtrek kon niet worden vastgelegd.",
+      );
+    }
+  }
+  async function pick(point: Point, id: number) {
+    if (selectionTool === "outline") {
+      if (draftPoints.length >= 64) {
+        setNotice(
+          "Maximaal 64 hoekpunten. Leg deze muur vast of begin opnieuw.",
+        );
+        return;
+      }
+      setDraftPoints((points) => [...points, point]);
+      return;
+    }
+    if (id) {
+      select(id);
+      return;
+    }
+    if (selectionTool !== "magic" || !ownImage || !doc) {
+      select(0);
+      return;
+    }
+    if (selecting) return;
+    const target = nextTarget();
+    if (!target) {
+      setNotice(
+        "Kies een bestaande muur en schakel Toevoegen aan gekozen muur in, of maak ruimte met Ongedaan maken.",
+      );
+      return;
+    }
+    const request = ++selectionRequest.current;
+    setSelecting(true);
+    setError("");
+    setOriginal(false);
+    try {
+      let image =
+        selectionImage.current?.source === source
+          ? selectionImage.current.image
+          : null;
+      if (
+        !image ||
+        image.width !== doc.mask.width ||
+        image.height !== doc.mask.height
+      )
+        image = await readSelectionImage(source, doc.mask);
+      if (request !== selectionRequest.current) return;
+      selectionImage.current = { source, image };
+      const result = selectConnected(image, doc.mask, point, target, tolerance);
+      setDoc((previous) =>
+        previous && previous.mask === doc.mask
+          ? editDocument(previous, { mask: result.mask })
+          : previous,
+      );
+      setSelected(target);
+      setNotice(
+        `${SURFACES.find((s) => s.id === target)?.name} geselecteerd. Kies een kleur. Controleer de randen; corrigeer met Muur tekenen of de gum.`,
+      );
+    } catch (e) {
+      if (request === selectionRequest.current) {
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Selectie mislukt. Gebruik Muur tekenen.",
+        );
+        setNotice(
+          "Klikselectie kon deze muur niet betrouwbaar begrenzen. Kies Muur tekenen.",
+        );
+      }
+    } finally {
+      if (request === selectionRequest.current) setSelecting(false);
+    }
+  }
+  async function exportView() {
+    if (!captureRef.current) {
+      setError("Wacht tot de viewer beschikbaar is.");
+      return;
+    }
+    setValidating(true);
+    setError("");
+    try {
+      downloadPNG(await captureRef.current());
+      setNotice("Je gekleurde weergave is als PNG gedownload.");
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : "De weergave kon niet worden gedownload.",
+      );
+    } finally {
+      setValidating(false);
+    }
+  }
+  function applyVariant(variant: ColorVariant) {
+    setDoc((previous) =>
+      previous
+        ? editDocument(previous, {
+            colors: { ...variant.colors },
+            strengths: { ...variant.strengths },
+            paintRefs: structuredClone(variant.paintRefs),
+          })
+        : previous,
+    );
+    setSelected(0);
+    setOriginal(false);
+    setShowMask(false);
+    setMode("look");
+    setSelectionTool("navigate");
+    setDraftPoints([]);
+    setNotice(
+      `Je bekijkt ${variant.name}. Kies een andere variant om te vergelijken.`,
+    );
   }
   function color(hex: string, reference?: PaintReference) {
     setOriginal(false);
@@ -409,6 +608,9 @@ export default function Studio() {
             showMask={showMask}
             onSelect={select}
             onPaint={paint}
+            onPick={pick}
+            draftPoints={draftPoints}
+            captureRef={captureRef}
           />
           <button
             className="compare-button"
@@ -420,6 +622,46 @@ export default function Studio() {
           >
             {original ? "Toon kleuren" : "Toon origineel"}
           </button>
+          {ownImage &&
+            selected > 0 &&
+            mode === "look" &&
+            selectionTool !== "outline" &&
+            !selecting && (
+              <button
+                className="selected-surface-action"
+                onClick={() =>
+                  document
+                    .querySelector(".color-panel")
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                Kleur kiezen voor {surface?.name} →
+              </button>
+            )}
+          {selectionTool === "outline" && (
+            <div className="outline-actions">
+              <span>
+                {draftPoints.length} hoekpunten ·{" "}
+                {SURFACES.find((s) => s.id === draftTarget)?.name}
+              </span>
+              <button onClick={finishOutline} disabled={draftPoints.length < 3}>
+                Muur vastleggen
+              </button>
+              <button
+                aria-label="Laatste hoekpunt terug"
+                disabled={!draftPoints.length}
+                onClick={() => setDraftPoints((points) => points.slice(0, -1))}
+              >
+                Punt terug
+              </button>
+              <button onClick={() => chooseTool("navigate")}>Annuleren</button>
+            </div>
+          )}
+          {selecting && (
+            <div className="selection-progress" role="status">
+              Muurvlak selecteren…
+            </div>
+          )}
           <div className="viewer-top">
             <span className="viewer-pill">
               <span className="status-dot" />
@@ -534,15 +776,93 @@ export default function Studio() {
             <p className="file-spec">360° · 2:1-verhouding · maximaal 25 MB</p>
           </div>
           <p className="help-text">
-            Eigen foto’s krijgen een leeg masker. Corrigeer dit handmatig of
-            importeer een uitgelijnd PNG-ID-masker. Je foto en wijzigingen
-            blijven in deze browsersessie. Sla je project op vóór je een andere
-            foto opent of de pagina herlaadt.
+            Na openen kun je direct een muur aanklikken of de omtrek aangeven
+            met Muur tekenen. Controleer de selectie en gum ramen of meubels
+            weg. Je foto blijft op je apparaat; sla je project op om verder te
+            werken.
           </p>
           {error && (
             <div className="upload-error" role="alert">
               {error}
             </div>
+          )}
+          {doc && ownImage && (
+            <section
+              className="wall-selection"
+              aria-label="Muren in je eigen foto selecteren"
+            >
+              <h3>1. Kies een muur · 2. Kies een kleur</h3>
+              <div
+                className="mode-buttons"
+                role="group"
+                aria-label="Selectiegereedschap"
+              >
+                {(
+                  [
+                    ["magic", "Klikselectie"],
+                    ["outline", "Muur tekenen"],
+                    ["navigate", "Rondkijken / selecteren"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    disabled={selecting}
+                    aria-pressed={selectionTool === value && mode === "look"}
+                    onClick={() => chooseTool(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <button
+                  disabled={selecting}
+                  onClick={() => {
+                    setMode("erase");
+                    setSelectionTool("navigate");
+                    setDraftPoints([]);
+                    setShowMask(true);
+                    setOriginal(false);
+                    if (editor.current) editor.current.open = true;
+                  }}
+                >
+                  Gum / corrigeren
+                </button>
+              </div>
+              {selectionTool === "magic" && (
+                <>
+                  <label className="field-label" htmlFor="selection-tolerance">
+                    Kleurverschil toestaan: {tolerance}
+                  </label>
+                  <input
+                    id="selection-tolerance"
+                    type="range"
+                    min={8}
+                    max={70}
+                    value={tolerance}
+                    onChange={(e) => setTolerance(Number(e.target.value))}
+                  />
+                  <p className="help-text">
+                    Klik in het midden van een muur. Dit kiest aaneengesloten
+                    vergelijkbare kleuren, geen AI-herkenning. Gebruik een
+                    lagere waarde bij lekkage, of teken de omtrek zelf.
+                  </p>
+                </>
+              )}
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={addToSelected}
+                  onChange={(e) => setAddToSelected(e.target.checked)}
+                />{" "}
+                Toevoegen aan gekozen muur
+              </label>
+              {selectionTool === "outline" && (
+                <p className="help-text">
+                  Klik de hoeken van de muur aan en druk in het beeld op Muur
+                  vastleggen. Rond ramen en meubels kun je daarna gummen. Op
+                  360°-beelden kun je tussendoor rondkijken.
+                </p>
+              )}
+            </section>
           )}
           <p className="selection-status" role="status">
             {notice}
@@ -555,7 +875,11 @@ export default function Studio() {
               <select
                 id="surface-select"
                 value={selected}
-                onChange={(e) => select(Number(e.target.value))}
+                onChange={(e) => {
+                  select(Number(e.target.value));
+                  setSelectionTool("navigate");
+                  setDraftPoints([]);
+                }}
               >
                 <option value={0}>Klik in de ruimte of kies hier</option>
                 {SURFACES.map((s) => (
@@ -628,7 +952,7 @@ export default function Studio() {
           )}
           <button
             className="button undo-button"
-            disabled={!doc?.history.length}
+            disabled={!doc?.history.length || selecting}
             onClick={() =>
               setDoc((previous) =>
                 previous ? undoDocument(previous) : previous,
@@ -675,6 +999,8 @@ export default function Studio() {
                     disabled={value === "paint" && !selected}
                     onClick={() => {
                       setMode(value);
+                      setSelectionTool("navigate");
+                      setDraftPoints([]);
                       setOriginal(false);
                     }}
                   >
@@ -748,12 +1074,41 @@ export default function Studio() {
               />
             </details>
           )}
+          {doc && (
+            <VariantPanel
+              doc={doc}
+              busy={validating || loading || selecting || !!viewerError}
+              onExport={() => void exportView()}
+              onSave={(variant) => {
+                setDoc((previous) =>
+                  previous
+                    ? editDocument(previous, {
+                        variants: [...(previous.variants || []), variant],
+                      })
+                    : previous,
+                );
+                setNotice(
+                  `Variant ${variant.name} bewaard. Gebruik Project opslaan om hem op je apparaat te bewaren.`,
+                );
+              }}
+              onApply={applyVariant}
+              onRemove={(id) =>
+                setDoc((previous) =>
+                  previous
+                    ? editDocument(previous, {
+                        variants: previous.variants?.filter((v) => v.id !== id),
+                      })
+                    : previous,
+                )
+              }
+            />
+          )}
           <div className="project-actions">
             <h3>Bewaar je ontwerp</h3>
             <p className="help-text">
-              Download één projectbestand met je foto, maskers en kleuren. Geen
-              account of serveropslag. Open het bestand later om verder te
-              werken.
+              Download één projectbestand met je foto, maskers, kleuren en
+              kleurvarianten. Geen account of serveropslag. Open het bestand
+              later om verder te werken.
             </p>
             <button
               className="button small"

@@ -62,7 +62,7 @@ test("flat masks clamp at image edges; brushes and strokes never wrap to the opp
   );
   assert.equal(stroke.pixels[2550], 1);
 });
-test("v3 photo projects retain projection and non-wrapping masks; v1/v2 projects remain panoramas", () => {
+test("v4 photo projects retain projection and non-wrapping masks; v1/v2 projects remain panoramas", () => {
   const mask = {
     width: 2,
     height: 3,
@@ -78,7 +78,7 @@ test("v3 photo projects retain projection and non-wrapping masks; v1/v2 projects
   const restored = decodeProject(project);
   assert.equal(restored.projection, "photo");
   assert.equal(restored.snapshot.mask.wrapX, false);
-  assert.equal(project.version, 3);
+  assert.equal(project.version, 4);
   for (const version of [1, 2])
     assert.equal(decodeProject({ ...project, version }).projection, "panorama");
   assert.throws(() => decodeProject({ ...project, projection: "fisheye" }));

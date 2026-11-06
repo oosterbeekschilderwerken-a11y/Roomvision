@@ -205,6 +205,9 @@ test("own panorama starts without demo masks; a painted stroke becomes a selecta
     .setInputFiles("public/room/panorama.png");
   await expect(page.getByText("panorama.png", { exact: true })).toBeVisible();
   await expect(page.getByText("Panorama laden…")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Rondkijken / selecteren", exact: true })
+    .click();
   await clickAt(page, 0.5, 0.35);
   await expect(page.locator("#surface-select")).toHaveValue("0");
   await page.locator("#surface-select").selectOption("1");

@@ -1,3 +1,4 @@
+import type { ColorVariant } from "./variants.ts";
 import type { PaintReferences } from "./paint-catalog.ts";
 export const SURFACES = [
   { id: 1, key: "wall_001", name: "Muur 1" },
@@ -23,6 +24,7 @@ export type Snapshot = {
   colors: Colors;
   strengths?: Strengths;
   paintRefs?: PaintReferences;
+  variants?: ColorVariant[];
 };
 export type Document = Snapshot & { history: Snapshot[]; future?: Snapshot[] };
 export const wrap = (u: number) => ((u % 1) + 1) % 1;
@@ -50,6 +52,7 @@ function snapshotDocument(doc: Document): Snapshot {
     colors: doc.colors,
     strengths: doc.strengths,
     paintRefs: doc.paintRefs,
+    variants: doc.variants,
   };
 }
 export function editDocument(

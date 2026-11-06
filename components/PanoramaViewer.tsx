@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import * as THREE from "three";
 import type { ImageKind } from "@/lib/image-kind";
 import { estimateLighting } from "@/lib/lighting";
@@ -12,7 +12,12 @@ import {
   type Strengths,
 } from "@/lib/surfaces";
 
+export type ViewerCapture = () => Promise<Blob>;
+const EMPTY_POINTS: Point[] = [];
 type Props = {
+  onPick?: (point: Point, id: number) => void;
+  draftPoints?: Point[];
+  captureRef?: RefObject<ViewerCapture | null>;
   projection?: ImageKind;
   mask: Mask | null;
   colors: Colors;
@@ -47,6 +52,9 @@ export default function PanoramaViewer({
   showMask,
   onSelect,
   onPaint,
+  onPick,
+  draftPoints = EMPTY_POINTS,
+  captureRef,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const settings = useRef({
@@ -59,6 +67,8 @@ export default function PanoramaViewer({
     showMask,
     onSelect,
     onPaint,
+    onPick,
+    draftPoints,
   });
   const synchronize = useRef<(() => void) | null>(null);
   useEffect(() => {
@@ -72,6 +82,8 @@ export default function PanoramaViewer({
       showMask,
       onSelect,
       onPaint,
+      onPick,
+      draftPoints,
     };
     synchronize.current?.();
   }, [
@@ -84,6 +96,8 @@ export default function PanoramaViewer({
     showMask,
     onSelect,
     onPaint,
+    onPick,
+    draftPoints,
   ]);
   const view = useRef({ longitude: 0, latitude: 0, fov: 75, panX: 0, panY: 0 });
   useEffect(() => {
@@ -180,12 +194,83 @@ export default function PanoramaViewer({
     const { material, uniforms } = createColorMaterial();
     const sphere = new THREE.Mesh(geometry, material);
     scene.add(sphere);
+    const preview = new THREE.Group();
+    preview.renderOrder = 10;
+    scene.add(preview);
+    const lineGeometry = new THREE.BufferGeometry(),
+      pointGeometry = new THREE.BufferGeometry();
+    const theme = getComputedStyle(container);
+    const lineMaterial = new THREE.LineBasicMaterial({
+      color: theme.getPropertyValue("--accent").trim() || "#dce7f8",
+      depthTest: false,
+    });
+    const pointMaterial = new THREE.PointsMaterial({
+      color: theme.getPropertyValue("--brand").trim() || "#103f86",
+      size: 9,
+      sizeAttenuation: false,
+      depthTest: false,
+    });
+    const line = new THREE.Line(lineGeometry, lineMaterial),
+      corners = new THREE.Points(pointGeometry, pointMaterial);
+    line.renderOrder = 10;
+    corners.renderOrder = 11;
+    preview.add(line, corners);
+    preview.visible = false;
+    let previewKey = "";
+    const updatePreview = () => {
+      const points = settings.current.draftPoints;
+      preview.visible = points.length > 0;
+      line.visible = points.length > 1;
+      const key = JSON.stringify(points) + imageAspect;
+      if (key === previewKey) return;
+      previewKey = key;
+      const position = (p: Point) =>
+        flat
+          ? new THREE.Vector3(
+              (p.u - 0.5) * 2 * imageAspect,
+              (p.v - 0.5) * 2,
+              0.02,
+            )
+          : new THREE.Vector3(
+              Math.cos(p.u * Math.PI * 2) *
+                Math.sin((1 - p.v) * Math.PI) *
+                49.5,
+              Math.cos((1 - p.v) * Math.PI) * 49.5,
+              Math.sin(p.u * Math.PI * 2) *
+                Math.sin((1 - p.v) * Math.PI) *
+                49.5,
+            );
+      pointGeometry.setFromPoints(points.map(position));
+      const path: THREE.Vector3[] = [];
+      for (
+        let i = 0;
+        i < (points.length > 2 ? points.length : points.length - 1);
+        i++
+      ) {
+        const a = points[i],
+          b = points[(i + 1) % points.length];
+        let du = b.u - a.u;
+        if (!flat) {
+          if (du > 0.5) du--;
+          if (du < -0.5) du++;
+        }
+        for (let j = 0; j <= 16; j++)
+          path.push(
+            position({
+              u: a.u + (du * j) / 16,
+              v: a.v + ((b.v - a.v) * j) / 16,
+            }),
+          );
+      }
+      lineGeometry.setFromPoints(path);
+    };
     uniforms.horizontalWrap.value = flat ? 0 : 1;
     let lastMask: Mask | null = null;
     let lightingMask: Mask | null = null;
     let lightingImage: ImageData | null = null;
     const sync = () => {
       const current = settings.current;
+      updatePreview();
       if (current.mask && lastMask !== current.mask) {
         uniforms.idMap.value.dispose();
         const m = current.mask;
@@ -452,7 +537,11 @@ export default function PanoramaViewer({
       ) {
         const uv = hit(e.clientX, e.clientY),
           current = settings.current;
-        if (uv && current.mask) current.onSelect(surfaceAt(current.mask, uv));
+        if (uv && current.mask) {
+          const id = surfaceAt(current.mask, uv);
+          if (current.onPick) current.onPick(uv, id);
+          else current.onSelect(id);
+        }
       }
       pointers.delete(e.pointerId);
       lastDistance = distance();
@@ -466,7 +555,11 @@ export default function PanoramaViewer({
       if (e.key === "Enter" && settings.current.mask) {
         const rect = container.getBoundingClientRect();
         const uv = hit(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        if (uv) settings.current.onSelect(surfaceAt(settings.current.mask, uv));
+        if (uv) {
+          const id = surfaceAt(settings.current.mask, uv);
+          if (settings.current.onPick) settings.current.onPick(uv, id);
+          else settings.current.onSelect(id);
+        }
         return;
       }
       if (
@@ -525,6 +618,35 @@ export default function PanoramaViewer({
       if (loaded) renderer.render(scene, camera);
     };
     animate();
+    if (captureRef)
+      captureRef.current = () =>
+        new Promise<Blob>((resolve, reject) => {
+          if (!loaded || disposed) {
+            reject(new Error("Wacht tot de afbeelding geladen is."));
+            return;
+          }
+          uniforms.selectedSurface.value = 0;
+          uniforms.showMask.value = 0;
+          preview.visible = false;
+          updateCamera();
+          renderer.render(scene, camera);
+          const restore = () => {
+            if (!disposed) {
+              sync();
+              renderer.render(scene, camera);
+            }
+          };
+          try {
+            renderer.domElement.toBlob((blob) => {
+              restore();
+              if (blob) resolve(blob);
+              else reject(new Error("De PNG kon niet worden gemaakt."));
+            }, "image/png");
+          } catch {
+            restore();
+            reject(new Error("De weergave kon niet worden geëxporteerd."));
+          }
+        });
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
@@ -538,6 +660,11 @@ export default function PanoramaViewer({
       container.removeEventListener("keydown", key);
       renderer.domElement.removeEventListener("webglcontextlost", contextLost);
       synchronize.current = null;
+      if (captureRef) captureRef.current = null;
+      lineGeometry.dispose();
+      pointGeometry.dispose();
+      lineMaterial.dispose();
+      pointMaterial.dispose();
       uniforms.idMap.value.dispose();
       texture.dispose();
       material.dispose();
@@ -545,7 +672,7 @@ export default function PanoramaViewer({
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [source, projection, onReady, onError, onZoom]);
+  }, [source, projection, onReady, onError, onZoom, captureRef]);
   return (
     <div
       ref={host}

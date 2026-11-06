@@ -64,7 +64,7 @@ test("RAL code and manufacturer preference survive unrelated edits, undo, redo a
   doc = redoDocument(doc);
   assert.deepEqual(doc.paintRefs?.[1], ref);
   const saved = encodeProject("RAL-kamer", "data:image/png;base64,AQID", doc);
-  assert.equal(saved.version, 3);
+  assert.equal(saved.version, 4);
   assert.deepEqual(decodeProject(saved).snapshot.paintRefs?.[1], ref);
   assert.deepEqual(
     decodeProject({ ...saved, version: 1, paintRefs: undefined }).snapshot

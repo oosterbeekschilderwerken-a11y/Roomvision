@@ -32,7 +32,7 @@
 ## Latere fases — na aparte opdracht
 
 - [x] Lokale projectbestanden met foto, masker, kleuren en kleursterktes opslaan/terugopenen (geschiedenis blijft in de sessie).
-- [ ] Export en vergelijking van kleurvarianten.
+- [x] Export van de actuele weergave als PNG en vergelijking van kleurvarianten.
 - [ ] Eventuele AI-oppervlakteherkenning.
 - [ ] Eventueel offertesysteem.
 
@@ -69,3 +69,18 @@
 - [x] De acht generieke standaardkleurvakjes verwijderd; RAL, eigen kleur en HEX behouden.
 - [x] Productafspraken vastgelegd in AGENTS.md voor volgende wijzigingen.
 - [x] Unit- en desktop-/mobiele browsercontroles voor beide modi.
+
+## Eigen uploads herstellen en fase 3
+
+- [x] Eigen uploads direct aanklikbaar maken met lokale, verbonden kleurbereikselectie.
+- [x] Nieuw muur-ID per nieuwe selectie; toevoegmodus voor delen van dezelfde muur.
+- [x] Te brede/ambigue klikgebieden weigeren en een bruikbare tekenroute tonen.
+- [x] Zichtbare muuromtrek met hoekpunten, terug/annuleren en echt pixelmasker na vastleggen.
+- [x] Dezelfde selectie en omtrekken voor gewone foto’s en 360°, inclusief panoramanaad.
+- [x] Directe knop naar kleurbediening na selectie; gum blijft bereikbaar voor uitsparingen.
+- [x] Maximaal acht benoemde kleurvarianten bewaren, tonen, verwijderen en vergelijken op hetzelfde camerastandpunt.
+- [x] PNG-export uit de echte renderer zonder bediening of selectieranden.
+- [x] Projectformaat versie 4 met gevalideerde varianten; compatibiliteit met versies 1 t/m 3.
+- [x] Unit- en browsercontroles met eigen uploads zonder vooraf ingeladen maskers.
+- [ ] Semantische AI-oppervlakteherkenning (niet gelijkstellen aan de huidige kleurselectie).
+- [ ] Praktijktesten op aangeleverde echte interieurfoto’s en fysieke telefoons.
